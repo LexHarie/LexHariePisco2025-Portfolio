@@ -4,8 +4,12 @@ import * as TWEEN from '@tweenjs/tween.js';
 import { loadModel } from './utils/LoadingManager';
 import { PerlinNoise } from './utils/PerlinNoise';
 import { Ship } from './entities/Ship';
+import { Island } from './entities/Island';
 import { ShipControls } from './controls/ShipControls';
 
+/**
+ * Main World class that manages the 3D environment, physics, and game entities
+ */
 export default class World {
   // Three.js components
   private scene: THREE.Scene;
@@ -20,6 +24,9 @@ export default class World {
   // Game entities
   private ship: Ship | null = null;
   private shipControls: ShipControls | null = null;
+  private islands: Island[] = [];
+  private nearestIsland: Island | null = null;
+  private interactionDistance: number = 30; // Distance at which interaction is possible (reduced for smaller islands)
   
   // Environment
   private ocean: THREE.Mesh | null = null;
@@ -29,7 +36,6 @@ export default class World {
   private worldSeed: number;
   private playerPosition: THREE.Vector3 = new THREE.Vector3();
   
-  // UI elements removed
   // Stats tracking is still needed for internal calculations
   private stats = {
     deltaTime: 0,
@@ -86,6 +92,9 @@ export default class World {
     // Initialize ship
     await this.createShip();
     
+    // Create experience islands
+    await this.createExperienceIslands();
+    
     // Setup event listeners
     this.setupEventListeners();
     
@@ -96,6 +105,9 @@ export default class World {
     if (this.debug) {
       this.setupDebugHelpers();
     }
+    
+    // Load CSS for pirate scroll
+    this.loadScrollStyles();
   }
   
   private setupLighting(): void {
@@ -175,15 +187,53 @@ export default class World {
     console.log('Ship controls: W/S to move forward/backward, A/D to turn, SHIFT to boost');
   }
   
-  // Island and chest pools removed
+  /**
+   * Creates experience islands and places them in the world
+   */
+  private async createExperienceIslands(): Promise<void> {
+    // Load island model
+    const islandModel = await loadModel('/models/pirate_island.glb');
+    
+    // Create TechCorp Island (first job)
+    const techCorpIsland = new Island(
+      islandModel.clone(),
+      this.scene,
+      this.world,
+      'experience',
+      'Senior Frontend Developer',
+    );
+    
+    // Position TechCorp Island to the east
+    techCorpIsland.position = new THREE.Vector3(200, 0, 50);
+    this.islands.push(techCorpIsland);
+    
+    // Create Creative Digital Agency Island (second job)
+    const creativeDigitalIsland = new Island(
+      islandModel.clone(),
+      this.scene,
+      this.world,
+      'experience',
+      'Web Developer',
+    );
+    
+    // Position Creative Digital Agency Island to the west
+    creativeDigitalIsland.position = new THREE.Vector3(-250, 0, -150);
+    this.islands.push(creativeDigitalIsland);
+  }
   
   private setupEventListeners(): void {
     // Add escape key listener for closing overlays
     document.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') {
-        const overlays = document.querySelectorAll('.overlay-panel, .project-card');
+        const overlays = document.querySelectorAll('.overlay-panel, .project-card, .pirate-scroll-overlay');
         overlays.forEach(overlay => {
-          (overlay as HTMLElement).style.display = 'none';
+          // Find and click the close button if it exists
+          const closeButton = overlay.querySelector('.close-button, .pirate-scroll-close');
+          if (closeButton instanceof HTMLElement) {
+            closeButton.click();
+          } else {
+            (overlay as HTMLElement).style.display = 'none';
+          }
           
           // Resume physics and controls
           if (this.shipControls) {
@@ -194,12 +244,27 @@ export default class World {
         // Remove background blur
         this.renderer.domElement.style.filter = '';
       }
+      
+      // Add E key for interaction
+      if (event.key === 'e' || event.key === 'E') {
+        this.handleInteraction();
+      }
     });
   }
   
   private createUI(): void {
-    // Empty UI - debug elements removed
-    // We can add cleaner UI elements later as needed
+    // Create interaction prompt
+    const prompt = document.createElement('div');
+    prompt.className = 'interaction-prompt';
+    prompt.textContent = 'Press E to view';
+    document.body.appendChild(prompt);
+    
+    // Create UI overlay container if it doesn't exist
+    if (!document.getElementById('ui-overlay')) {
+      const uiOverlay = document.createElement('div');
+      uiOverlay.id = 'ui-overlay';
+      document.body.appendChild(uiOverlay);
+    }
   }
   
   private setupDebugHelpers(): void {
@@ -225,19 +290,96 @@ export default class World {
       
       // Update player position for world generation
       this.playerPosition.copy(this.ship.position);
+      
+      // Find nearest island for interaction
+      this.findNearestIsland();
     }
+    
+    // Update islands
+    for (const island of this.islands) {
+      island.update(deltaTime);
+    }
+    
+    // Update UI
+    this.updateUI();
     
     // Render scene
     this.renderer.render(this.scene, this.camera);
   }
   
-  // Entity pooling removed
-  
-  private updateUI(): void {
-    // UI updates removed - no debug info displayed
+  /**
+   * Finds the nearest island to the ship for interaction
+   */
+  private findNearestIsland(): void {
+    if (!this.ship) return;
+    
+    let nearestIsland: Island | null = null;
+    let minDistance = Infinity;
+    
+    for (const island of this.islands) {
+      const distance = this.ship.position.distanceTo(island.position);
+      
+      if (distance < minDistance) {
+        minDistance = distance;
+        nearestIsland = island;
+      }
+    }
+    
+    this.nearestIsland = nearestIsland;
   }
   
-  // This private method is now unused and removed to fix TypeScript warning
+  /**
+   * Updates the UI elements
+   */
+  private updateUI(): void {
+    // Update interaction prompt
+    const promptEl = document.querySelector('.interaction-prompt');
+    if (promptEl && this.nearestIsland) {
+      const distance = this.ship?.position.distanceTo(this.nearestIsland.position) || Infinity;
+      
+      if (distance < this.interactionDistance) {
+        // Show interaction prompt
+        promptEl.classList.add('visible');
+        (promptEl as HTMLElement).textContent = `Press E to view ${this.nearestIsland.getCompany()}`;
+      } else {
+        // Hide interaction prompt
+        promptEl.classList.remove('visible');
+      }
+    } else if (promptEl) {
+      // No nearby island, hide prompt
+      promptEl.classList.remove('visible');
+    }
+  }
+  
+  /**
+   * Handles interaction with the nearest island
+   */
+  private handleInteraction(): void {
+    if (!this.nearestIsland || !this.ship) return;
+    
+    const distance = this.ship.position.distanceTo(this.nearestIsland.position);
+    
+    if (distance < this.interactionDistance) {
+      // We're in range, trigger the interaction
+      this.nearestIsland.interact();
+      
+      // Disable ship controls during interaction
+      if (this.shipControls) {
+        this.shipControls.enabled = false;
+      }
+    }
+  }
+  
+  /**
+   * Loads the pirate scroll CSS styles
+   */
+  private loadScrollStyles(): void {
+    // Add pirate scroll CSS
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = '/css/pirate-scroll.css';
+    document.head.appendChild(link);
+  }
   
   public handleResize(): void {
     this.camera.aspect = window.innerWidth / window.innerHeight;
