@@ -27,7 +27,7 @@ export default class World {
   private shipControls: ShipControls | null = null;
   private islands: Island[] = [];
   private nearestIsland: Island | null = null;
-  private interactionDistance: number = 30; // Distance at which interaction is possible (reduced for smaller islands)
+  private interactionDistance: number = 300; // Increased distance for easier island interaction
   
   // Environment (ocean replaced by Gerstner water)
   private skybox: THREE.Mesh | null = null;
@@ -140,9 +140,9 @@ export default class World {
   }
   
   private async createEnvironment(): Promise<void> {
-    // Gerstner water ocean – with more dramatic waves
+    // Gerstner water ocean – milder waves
     this.gerstnerWater = new GerstnerWater({
-      distortionScale: 2.5,
+      distortionScale: 0.5,
     });
     this.scene.add(this.gerstnerWater.water);
     
@@ -186,7 +186,7 @@ export default class World {
       this.scene,
       this.world,
       'experience',
-      'Senior Frontend Developer',
+      'Software Engineer',
     );
     
     // Position TechCorp Island to the east
@@ -199,7 +199,7 @@ export default class World {
       this.scene,
       this.world,
       'experience',
-      'Web Developer',
+      'Backend Engineeer',
     );
     
     // Position Creative Digital Agency Island to the west
