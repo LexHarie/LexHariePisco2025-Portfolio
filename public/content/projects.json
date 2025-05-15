@@ -1,0 +1,62 @@
+[
+  {
+    "id": "project1",
+    "name": "Interactive Data Visualization",
+    "year": 2023,
+    "description": "A WebGL-powered data visualization platform that renders complex datasets in 3D space with interactive controls.",
+    "techStack": ["Three.js", "TypeScript", "D3.js", "React"],
+    "github": "https://github.com/yourusername/data-viz",
+    "liveDemo": "https://data-viz-demo.example.com",
+    "thumbnail": "/textures/projects/data-viz.jpg"
+  },
+  {
+    "id": "project2",
+    "name": "VR Product Showcase",
+    "year": 2022,
+    "description": "A virtual reality product showcase allowing users to interact with 3D models of products in immersive environments.",
+    "techStack": ["WebXR", "Three.js", "Cannon-es", "Svelte"],
+    "github": "https://github.com/yourusername/vr-showcase",
+    "liveDemo": "https://vr-showcase.example.com",
+    "thumbnail": "/textures/projects/vr-showcase.jpg"
+  },
+  {
+    "id": "project3",
+    "name": "Procedural Terrain Generator",
+    "year": 2022,
+    "description": "A tool for generating realistic 3D terrains with adjustable parameters for height, erosion, and biome distribution.",
+    "techStack": ["WebGL", "GLSL", "JavaScript", "Custom Shaders"],
+    "github": "https://github.com/yourusername/terrain-gen",
+    "liveDemo": "https://terrain-generator.example.com",
+    "thumbnail": "/textures/projects/terrain-gen.jpg"
+  },
+  {
+    "id": "project4",
+    "name": "Physics Playground",
+    "year": 2021,
+    "description": "An interactive physics sandbox with realistic simulations of rigid bodies, soft bodies, and fluid dynamics.",
+    "techStack": ["Three.js", "Cannon-es", "TypeScript", "WebWorkers"],
+    "github": "https://github.com/yourusername/physics-playground",
+    "liveDemo": "https://physics-playground.example.com",
+    "thumbnail": "/textures/projects/physics.jpg"
+  },
+  {
+    "id": "project5",
+    "name": "Collaborative Whiteboard",
+    "year": 2021,
+    "description": "A real-time collaborative whiteboard application with vector drawing tools and 3D object placement.",
+    "techStack": ["Canvas API", "Socket.io", "Node.js", "Express"],
+    "github": "https://github.com/yourusername/collab-whiteboard",
+    "liveDemo": "https://whiteboard.example.com",
+    "thumbnail": "/textures/projects/whiteboard.jpg"
+  },
+  {
+    "id": "project6",
+    "name": "Particle System Demo",
+    "year": 2020,
+    "description": "A GPU-accelerated particle system demonstrating various effects like fire, smoke, and fluid simulations.",
+    "techStack": ["WebGL", "GLSL", "Compute Shaders", "JavaScript"],
+    "github": "https://github.com/yourusername/particles",
+    "liveDemo": "https://particles.example.com",
+    "thumbnail": "/textures/projects/particles.jpg"
+  }
+]
