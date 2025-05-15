@@ -29,16 +29,14 @@ export default class World {
   private worldSeed: number;
   private playerPosition: THREE.Vector3 = new THREE.Vector3();
   
-  // UI elements
+  // UI elements removed
+  // Stats tracking is still needed for internal calculations
   private stats = {
-    fps: 0,
     deltaTime: 0,
-    speed: 0,
-    stamina: 1.0
   };
   
   // Debug
-  public debug: boolean = false;
+  public debug: boolean = false; // Kept but not used
   
   constructor() {
     // Initialize Three.js scene
@@ -200,32 +198,12 @@ export default class World {
   }
   
   private createUI(): void {
-    // Create compass
-    const compass = document.createElement('div');
-    compass.className = 'hud compass';
-    compass.textContent = 'N';
-    document.getElementById('ui-overlay')?.appendChild(compass);
-    
-    // Create stats display
-    const stats = document.createElement('div');
-    stats.className = 'hud stats';
-    document.getElementById('ui-overlay')?.appendChild(stats);
-    
-    // Create interaction prompt
-    const prompt = document.createElement('div');
-    prompt.className = 'interaction-prompt';
-    prompt.textContent = 'Press E to interact';
-    document.getElementById('ui-overlay')?.appendChild(prompt);
+    // Empty UI - debug elements removed
+    // We can add cleaner UI elements later as needed
   }
   
   private setupDebugHelpers(): void {
-    // Add axes helper
-    const axesHelper = new THREE.AxesHelper(5);
-    this.scene.add(axesHelper);
-    
-    // Add grid helper
-    const gridHelper = new THREE.GridHelper(1000, 100);
-    this.scene.add(gridHelper);
+    // Debug helpers removed
   }
   
   public animate(): void {
@@ -233,7 +211,6 @@ export default class World {
     
     const deltaTime = this.clock.getDelta();
     this.stats.deltaTime = deltaTime;
-    this.stats.fps = 1 / deltaTime;
     
     // Update TWEEN
     TWEEN.update();
@@ -248,12 +225,7 @@ export default class World {
       
       // Update player position for world generation
       this.playerPosition.copy(this.ship.position);
-      this.stats.speed = this.ship.getCurrentSpeed();
-      this.stats.stamina = this.ship.getStamina();
     }
-    
-    // Update UI
-    this.updateUI();
     
     // Render scene
     this.renderer.render(this.scene, this.camera);
@@ -262,38 +234,10 @@ export default class World {
   // Entity pooling removed
   
   private updateUI(): void {
-    // Update stats display
-    const statsEl = document.querySelector('.stats');
-    if (statsEl) {
-      statsEl.textContent = `FPS: ${Math.round(this.stats.fps)} | Speed: ${Math.round(this.stats.speed * 10) / 10} | Stamina: ${Math.round(this.stats.stamina * 100)}%`;
-    }
-    
-    // Update compass
-    if (this.ship) {
-      const compassEl = document.querySelector('.compass');
-      if (compassEl) {
-        const direction = Math.round((this.ship.getRotation() * 180 / Math.PI) % 360);
-        let compassPoint = 'N';
-        
-        if (direction >= 45 && direction < 135) compassPoint = 'E';
-        else if (direction >= 135 && direction < 225) compassPoint = 'S';
-        else if (direction >= 225 && direction < 315) compassPoint = 'W';
-        
-        compassEl.textContent = compassPoint;
-      }
-    }
-    
-    // Hide interaction prompt since we have no interactables
-    const promptEl = document.querySelector('.interaction-prompt');
-    if (promptEl) {
-      (promptEl as HTMLElement).style.opacity = '0';
-    }
+    // UI updates removed - no debug info displayed
   }
   
-  private findNearestInteractable(): null {
-    // No interactables in this simplified version
-    return null;
-  }
+  // This private method is now unused and removed to fix TypeScript warning
   
   public handleResize(): void {
     this.camera.aspect = window.innerWidth / window.innerHeight;
