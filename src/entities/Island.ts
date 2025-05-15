@@ -42,7 +42,7 @@ export class Island implements Poolable {
     const shape = new CANNON.Cylinder(shapeRadius, shapeRadius, 30, 8);
     this.body = new CANNON.Body({
       mass: 0, // Static body
-      position: new CANNON.Vec3(0, 0, 0),
+      position: new CANNON.Vec3(0, -15, 0), // Position island lower to be partially submerged
       shape,
       material: new CANNON.Material({
         friction: 0.5,
@@ -50,10 +50,15 @@ export class Island implements Poolable {
       })
     });
     
-    // Set proper orientation for the cylinder
+    // Set proper orientation for the cylinder (corrected from previous version)
     const quat = new CANNON.Quaternion();
-    quat.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), Math.PI / 2);
+    quat.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2); // Negative for correct orientation
     this.body.quaternion.copy(quat);
+    
+    // Apply a random rotation around Y axis
+    const yRotation = new CANNON.Quaternion();
+    yRotation.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), Math.random() * Math.PI * 2);
+    this.body.quaternion = this.body.quaternion.mult(yRotation);
     
     // Set up the floating animation
     this.setupFloatingAnimation();
@@ -112,8 +117,10 @@ export class Island implements Poolable {
   public update(_deltaTime: number): void {
     if (!this.active) return;
     
-    // Apply floating effect
-    this.model.position.y = this.position.y + this.floatingParams.y * 0.5;
+    // Apply floating effect to the model's position, not affecting physics body
+    this.model.position.x = this.body.position.x;
+    this.model.position.y = this.body.position.y + this.floatingParams.y * 1.5; // Increased amplitude
+    this.model.position.z = this.body.position.z;
     
     // Update title mesh to face camera
     if (this.titleMesh) {
@@ -194,7 +201,26 @@ export class Island implements Poolable {
   public set position(pos: THREE.Vector3) {
     this._position.copy(pos);
     this.model.position.copy(pos);
+    
+    // Position the physics body at the given position
     this.body.position.set(pos.x, pos.y, pos.z);
+    
+    // Apply a random rotation around Y axis when repositioning
+    const yRotation = new CANNON.Quaternion();
+    yRotation.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), Math.random() * Math.PI * 2);
+    
+    // Maintain the basic cylinder orientation while adding random rotation
+    const baseQuat = new CANNON.Quaternion();
+    baseQuat.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
+    this.body.quaternion = baseQuat.mult(yRotation);
+    
+    // Update model rotation to match
+    this.model.quaternion.set(
+      this.body.quaternion.x,
+      this.body.quaternion.y,
+      this.body.quaternion.z,
+      this.body.quaternion.w
+    );
   }
   
   public get position(): THREE.Vector3 {
