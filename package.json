@@ -4,11 +4,23 @@
   "description": "Interactive 3D pirate-themed portfolio built with Three.js and Cannon.js.",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "lint": "eslint . --ext .ts",
+    "lint:fix": "eslint . --ext .ts --fix",
+    "format": "prettier --write \"**/*.{ts,json,css,html}\""
   },
   "devDependencies": {
-    "vite": "^4.5.14"
+    "@types/node": "^22.15.18",
+    "@types/three": "^0.176.0",
+    "@typescript-eslint/eslint-plugin": "^8.32.1",
+    "@typescript-eslint/parser": "^8.32.1",
+    "eslint": "^9.26.0",
+    "eslint-config-prettier": "^10.1.5",
+    "prettier": "^3.5.3",
+    "typescript": "^5.8.3",
+    "vite": "^4.5.14",
+    "vite-tsconfig-paths": "^5.1.4"
   },
   "dependencies": {
     "@tweenjs/tween.js": "^25.0.0",
