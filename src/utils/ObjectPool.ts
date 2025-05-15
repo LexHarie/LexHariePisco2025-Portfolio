@@ -32,6 +32,8 @@ export class ObjectPool<T extends Poolable> {
     const inactiveObj = this.pool.find(obj => !obj.isActive());
     
     if (inactiveObj) {
+      // Reset the object before activating to ensure clean state
+      inactiveObj.reset();
       inactiveObj.activate();
       return inactiveObj;
     }
@@ -46,6 +48,7 @@ export class ObjectPool<T extends Poolable> {
     
     // If we've reached max size, recycle the oldest object
     const oldestObj = this.pool[0];
+    oldestObj.deactivate(); // Properly deactivate first
     oldestObj.reset();
     oldestObj.activate();
     
