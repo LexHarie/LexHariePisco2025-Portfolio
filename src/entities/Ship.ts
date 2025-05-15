@@ -15,7 +15,6 @@ export class Ship {
   // Movement
   private acceleration: number = 15;
   private rotationSpeed: number = Math.PI / 4; // 45 degrees per second
-  private currentSpeed: number = 0;
   
   // Stamina
   private stamina: number = 1.0;
@@ -55,13 +54,38 @@ export class Ship {
       })
     });
     
-    // Configure physics body
-    this.body.linearDamping = 0.7;
-    this.body.angularDamping = 0.99;
+    // Configure physics body with lower damping
+    this.body.linearDamping = 0.25;
+    this.body.angularDamping = 0.35;
     this.body.allowSleep = false;
+    
+    // Set higher initial position to give the ship more room to fall and stabilize
+    this.body.position.set(0, 5, 0);
+    
+    // Allow yaw (Y-axis rotation) only, block pitch and roll
+    this.body.angularFactor.set(0, 1, 0);
     
     // Add the body to the world
     this.world.addBody(this.body);
+    
+    // Add event listener to neutralize any residual tilt after physics step
+    this.world.addEventListener('postStep', () => {
+      // Get current rotation as axis/angle
+      const axis = new CANNON.Vec3();
+      
+      // If rotation is primarily around Y axis, keep it as is
+      // Otherwise, reset rotation to keep only the Y component
+      if (Math.abs(axis.y) < 0.9) { // If not primarily rotating around Y
+        // Extract rotation around Y axis using body's euler angles
+        const euler = new CANNON.Vec3();
+        this.body.quaternion.toEuler(euler);
+        
+        // Create new quaternion with only Y rotation
+        const fixedQuaternion = new CANNON.Quaternion();
+        fixedQuaternion.setFromEuler(0, euler.y, 0);
+        this.body.quaternion.copy(fixedQuaternion);
+      }
+    });
     
     // Add the model to the scene
     this.scene.add(this.model);
@@ -112,11 +136,17 @@ export class Ship {
   
     if (submerged === 0) return;
   
-    // neutral buoyancy per Archimedes
-    const F = -this.world.gravity.y * this.body.mass * submerged;  // ≈ 98 N when fully submerged
+    // Enhanced buoyancy - multiply by 1.5 to create extra lift
+    // This ensures the ship floats higher in the water rather than sitting at neutral buoyancy
+    const buoyancyMultiplier = 1.5; // Increase for higher floating position
+    const F = -this.world.gravity.y * this.body.mass * submerged * buoyancyMultiplier;
     this.body.applyForce(new CANNON.Vec3(0, F, 0), this.body.position);
+    
+    // Vertical damping to prevent bouncing
+    const verticalDamping = 0.8;
+    this.body.applyForce(new CANNON.Vec3(0, -this.body.velocity.y * verticalDamping * submerged, 0), this.body.position);
   
-    // quadratic water drag on horizontal motion
+    // Quadratic water drag on horizontal motion
     const dragCoeff = 5;
     const horizVel = new CANNON.Vec3(this.body.velocity.x, 0, this.body.velocity.z);
     this.body.applyForce(horizVel.scale(-dragCoeff * submerged), this.body.position);
@@ -162,12 +192,34 @@ private handleMovement(): void {
   }
   
   private applyBobbingEffect(): void {
-    // Apply slight bobbing effect based on tween
-    this.model.position.y += this.bobbingParams.y * 0.5;
+    // Apply slight bobbing effect based on tween - visual only, doesn't affect physics
+    this.model.position.y += this.bobbingParams.y * 0.3;
     
-    // Add slight roll based on bobbing
-    const rollAngle = (this.bobbingParams.y - 0.5) * 0.05;
-    this.model.rotation.z += rollAngle;
+    // Visual-only roll effect (doesn't affect physics body rotation)
+    const rollAngle = (this.bobbingParams.y - 0.5) * 0.02;
+    
+    // Get current body quaternion for base rotation
+    const bodyQuat = this.body.quaternion;
+    
+    // Extract yaw rotation to use with visual roll
+    const euler = new CANNON.Vec3();
+    bodyQuat.toEuler(euler);
+    
+    // Create a THREE.js quaternion for the visual model
+    // First apply the physics body's yaw
+    const modelQuat = new THREE.Quaternion().setFromAxisAngle(
+      new THREE.Vector3(0, 1, 0),
+      euler.y
+    );
+    
+    // Then apply visual roll for bobbing effect
+    const rollQuat = new THREE.Quaternion().setFromAxisAngle(
+      new THREE.Vector3(0, 0, 1),
+      rollAngle
+    );
+    
+    // Combine the rotations
+    this.model.quaternion.copy(modelQuat.multiply(rollQuat));
   }
   
   private updateStamina(deltaTime: number): void {
@@ -205,7 +257,11 @@ private handleMovement(): void {
   }
   
   public getCurrentSpeed(): number {
-    return this.isBoosting ? this.currentSpeed * this.boostMultiplier : this.currentSpeed;
+    // Calculate actual speed from velocity magnitude
+    const velocity = this.body.velocity;
+    const speed = Math.sqrt(velocity.x * velocity.x + velocity.z * velocity.z);
+    
+    return this.isBoosting ? speed * this.boostMultiplier : speed;
   }
   
   public getStamina(): number {
