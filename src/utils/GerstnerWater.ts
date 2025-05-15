@@ -23,11 +23,6 @@ import * as THREE from 'three';
  *      x' = x + Σ  ( Q * A * D.x * cos( k·D·X - ωt ) )
  *      y' =     Σ  (      A       * sin( k·D·X - ωt ) )
  *      z' = z + Σ  ( Q * A * D.y * cos( k·D·X - ωt ) )
- *
- *  Three independent waves (A,B,C) are used similar to the reference
- *  implementation mentioned by the user. A configurable
- *  `distortionScale` allows the whole set of waves to be amplified or
- *  reduced from the outside.
  * --------------------------------------------------------- */
 
 export interface WaveConfig {
@@ -37,6 +32,8 @@ export interface WaveConfig {
   steepness: number;
   /** Physical wavelength of the wave in world units. */
   wavelength: number;
+  /** Optional explicit amplitude */
+  amplitude?: number;
 }
 
 interface InternalWave {
@@ -92,13 +89,16 @@ export default class GerstnerWater {
     const pos = this._geometry.attributes.position; // THREE.BufferAttribute
     this._initialPositions = (pos.array as Float32Array).slice() as Float32Array;
 
-    // Material -----------------------------------------
+
     const material = new THREE.MeshPhongMaterial({
       color,
       shininess: 80,
       specular: 0x555555,
       flatShading: false,
       side: THREE.DoubleSide,
+      normalScale: new THREE.Vector2(1, 1),
+      transparent: true,
+      opacity: 0.96,
     });
 
     this.water = new THREE.Mesh(this._geometry, material);
@@ -115,9 +115,9 @@ export default class GerstnerWater {
     const g = 9.81; // gravitational constant used for dispersion relation
 
     const defaults: WaveConfig[] = waveConfigs ?? [
-      { direction: [1, 0], steepness: 0.5, wavelength: 60 }, // Wave A
-      { direction: [0, 1], steepness: 0.35, wavelength: 45 }, // Wave B
-      { direction: [1, 1], steepness: 0.25, wavelength: 25 }, // Wave C
+      { direction: [1, 0], steepness: 0.1, wavelength: 60, amplitude: 0.8 }, // Wave A
+      { direction: [0, 1], steepness: 0.08, wavelength: 45, amplitude: 0.5 }, // Wave B
+      { direction: [1, 1], steepness: 0.06, wavelength: 25, amplitude: 0.25 }, // Wave C
     ];
 
     for (const cfg of defaults) {
@@ -125,11 +125,11 @@ export default class GerstnerWater {
       if (D.lengthSq() === 0) throw new Error('Wave direction cannot be zero');
       D.normalize();
 
-      // ensure steepness stays within a safe numerical range
       const Q = THREE.MathUtils.clamp(cfg.steepness, 0.0, 1.0);
       const L = Math.max(0.0001, cfg.wavelength);
       const k = (2 * Math.PI) / L;
-      const A = Q / k; // amplitude derived from steepness so waves remain stable
+      // Use provided amplitude or default to gentle amplitude derived from steepness
+      const A = cfg.amplitude !== undefined ? cfg.amplitude : Q / k;
       const ω = Math.sqrt(g * k);
 
       this._waves.push({ D, k, ω, A, Q });
