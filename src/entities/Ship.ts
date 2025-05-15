@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
-import * as TWEEN from '@tweenjs/tween.js';
+// Removed TWEEN-based bobbing; using Gerstner water
 
+import GerstnerWater from '../utils/GerstnerWater';
 export class Ship {
   // Three.js model and components
   private model: THREE.Group;
@@ -31,13 +32,14 @@ export class Ship {
     right: false
   };
   
-  // Effects
-  private bobbingParams = { y: 0 };
+  // Gerstner water reference
+  private water: GerstnerWater;
   
-  constructor(model: THREE.Group, scene: THREE.Scene, world: CANNON.World) {
+  constructor(model: THREE.Group, scene: THREE.Scene, world: CANNON.World, water: GerstnerWater) {
     this.model = model;
     this.scene = scene;
     this.world = world;
+    this.water = water;
     
     // Scale the ship model
     this.model.scale.set(20, 20, 20);
@@ -97,19 +99,9 @@ export class Ship {
       this.body.position.z
     );
     
-    // Set up bobbing effect
-    this.setupBobbingEffect();
+    // Gerstner water will drive buoyancy and orientation
   }
   
-  private setupBobbingEffect(): void {
-    // Create the bobbing animation
-    new TWEEN.Tween(this.bobbingParams)
-      .to({ y: 1 }, 2000)
-      .repeat(Infinity)
-      .yoyo(true)
-      .easing(TWEEN.Easing.Sinusoidal.InOut)
-      .start();
-  }
   
   public update(deltaTime: number): void {
     // Apply water buoyancy (simplified)
@@ -120,16 +112,16 @@ export class Ship {
     
     // Update physics to visual position and rotation
     this.updateTransform();
-    
-    // Update bobbing effect
-    this.applyBobbingEffect();
+    // Align with Gerstner water normal
+    this.applyOrientation();
     
     // Update stamina
     this.updateStamina(deltaTime);
   }
   
   private applyBuoyancy(): void {
-    const waterLevel = 0;
+    // Get current Gerstner water height at ship position
+    const waterLevel = this.water.getHeightAt(this.body.position.x, this.body.position.z);
     const halfH = this.shape.halfExtents.y;
     const depth = waterLevel - (this.body.position.y - halfH);
     const submerged = Math.max(0, Math.min(1, depth / (halfH * 2)));
@@ -191,36 +183,6 @@ private handleMovement(): void {
     );
   }
   
-  private applyBobbingEffect(): void {
-    // Apply slight bobbing effect based on tween - visual only, doesn't affect physics
-    this.model.position.y += this.bobbingParams.y * 0.3;
-    
-    // Visual-only roll effect (doesn't affect physics body rotation)
-    const rollAngle = (this.bobbingParams.y - 0.5) * 0.02;
-    
-    // Get current body quaternion for base rotation
-    const bodyQuat = this.body.quaternion;
-    
-    // Extract yaw rotation to use with visual roll
-    const euler = new CANNON.Vec3();
-    bodyQuat.toEuler(euler);
-    
-    // Create a THREE.js quaternion for the visual model
-    // First apply the physics body's yaw
-    const modelQuat = new THREE.Quaternion().setFromAxisAngle(
-      new THREE.Vector3(0, 1, 0),
-      euler.y
-    );
-    
-    // Then apply visual roll for bobbing effect
-    const rollQuat = new THREE.Quaternion().setFromAxisAngle(
-      new THREE.Vector3(0, 0, 1),
-      rollAngle
-    );
-    
-    // Combine the rotations
-    this.model.quaternion.copy(modelQuat.multiply(rollQuat));
-  }
   
   private updateStamina(deltaTime: number): void {
     if (this.isBoosting && this.movementDirection.forward) {
@@ -237,6 +199,33 @@ private handleMovement(): void {
       this.stamina += this.staminaRegenRate * deltaTime;
       this.stamina = Math.min(1, this.stamina);
     }
+  }
+  
+  // Align ship model orientation with Gerstner water normal and physics yaw
+  private applyOrientation(): void {
+    // Sample position
+    const x = this.body.position.x;
+    const z = this.body.position.z;
+    // Compute slopes
+    const eps = 0.1;
+    const hL = this.water.getHeightAt(x - eps, z);
+    const hR = this.water.getHeightAt(x + eps, z);
+    const hD = this.water.getHeightAt(x, z - eps);
+    const hU = this.water.getHeightAt(x, z + eps);
+    const dHdx = (hR - hL) / (2 * eps);
+    const dHdz = (hU - hD) / (2 * eps);
+    // Compute tilt angles
+    const pitch = Math.atan2(dHdz, 1);
+    const roll = Math.atan2(-dHdx, 1);
+    // Extract yaw from physics body
+    const euler = new CANNON.Vec3();
+    this.body.quaternion.toEuler(euler);
+    const yawQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), euler.y);
+    // Build final orientation
+    const pitchQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), pitch);
+    const rollQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), roll);
+    const finalQuat = yawQuat.multiply(pitchQuat).multiply(rollQuat);
+    this.model.quaternion.copy(finalQuat);
   }
   
   public setMovementDirection(direction: 'forward' | 'backward' | 'left' | 'right', active: boolean): void {
