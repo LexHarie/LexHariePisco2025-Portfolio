@@ -42,7 +42,7 @@ export class Ship {
     this.water = water;
     
     // Scale the ship model
-    this.model.scale.set(20, 20, 20);
+    this.model.scale.set(5, 5, 5);
     
     // Set up physics body
     this.shape = new CANNON.Box(new CANNON.Vec3(8, 3, 15));
@@ -130,7 +130,8 @@ export class Ship {
   
     // Enhanced buoyancy - multiply by 1.5 to create extra lift
     // This ensures the ship floats higher in the water rather than sitting at neutral buoyancy
-    const buoyancyMultiplier = 1.5; // Increase for higher floating position
+    // Increase multiplier to keep the ship higher on large waves
+    const buoyancyMultiplier = 8;
     const F = -this.world.gravity.y * this.body.mass * submerged * buoyancyMultiplier;
     this.body.applyForce(new CANNON.Vec3(0, F, 0), this.body.position);
     
@@ -139,9 +140,15 @@ export class Ship {
     this.body.applyForce(new CANNON.Vec3(0, -this.body.velocity.y * verticalDamping * submerged, 0), this.body.position);
   
     // Quadratic water drag on horizontal motion
-    const dragCoeff = 5;
+    const dragCoeff = 1.5; // gentler horizontal water drag for freer movement
     const horizVel = new CANNON.Vec3(this.body.velocity.x, 0, this.body.velocity.z);
     this.body.applyForce(horizVel.scale(-dragCoeff * submerged), this.body.position);
+
+    // Softly correct height so the deck stays above water crests.
+    const clearance = 2; // additional units above the water surface (tune for desired deck height)
+    const desiredHeight = waterLevel + this.shape.halfExtents.y + clearance;
+    const lerpFactor = 0.01;
+    this.body.position.y = THREE.MathUtils.lerp(this.body.position.y, desiredHeight, lerpFactor);
   }
   
   
@@ -203,29 +210,41 @@ private handleMovement(): void {
   
   // Align ship model orientation with Gerstner water normal and physics yaw
   private applyOrientation(): void {
-    // Sample position
+    // Centre position of the ship on the water surface
     const x = this.body.position.x;
     const z = this.body.position.z;
-    // Compute slopes
-    const eps = 0.1;
-    const hL = this.water.getHeightAt(x - eps, z);
-    const hR = this.water.getHeightAt(x + eps, z);
-    const hD = this.water.getHeightAt(x, z - eps);
-    const hU = this.water.getHeightAt(x, z + eps);
-    const dHdx = (hR - hL) / (2 * eps);
-    const dHdz = (hU - hD) / (2 * eps);
-    // Compute tilt angles
-    const pitch = Math.atan2(dHdz, 1);
-    const roll = Math.atan2(-dHdx, 1);
-    // Extract yaw from physics body
+
+    // Use distances that roughly match the ship's size when sampling the surface.
+    // This filters out short-wavelength ripples that would otherwise cause jitter.
+    const halfWidth = this.shape.halfExtents.x;   // ≈ 8
+    const halfLength = this.shape.halfExtents.z;  // ≈ 15
+
+    // Roll (around Z) – sample left and right water heights
+    const hL = this.water.getHeightAt(x - halfWidth, z);
+    const hR = this.water.getHeightAt(x + halfWidth, z);
+    const slopeX = (hR - hL) / (2 * halfWidth);
+
+    // Pitch (around X) – sample front and back water heights
+    const hB = this.water.getHeightAt(x, z - halfLength); // back
+    const hF = this.water.getHeightAt(x, z + halfLength); // front
+    const slopeZ = (hF - hB) / (2 * halfLength);
+
+    // Convert slopes to tilt angles (small-angle approximation)
+    const roll = 0.5 * Math.atan(-slopeX);
+    const pitch = 0.5 * Math.atan(slopeZ);
+
+    // Preserve yaw coming from the physics body
     const euler = new CANNON.Vec3();
     this.body.quaternion.toEuler(euler);
     const yawQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), euler.y);
-    // Build final orientation
+
+    // Combine rotations (order: yaw → pitch → roll)
     const pitchQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), pitch);
     const rollQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), roll);
-    const finalQuat = yawQuat.multiply(pitchQuat).multiply(rollQuat);
-    this.model.quaternion.copy(finalQuat);
+    const targetQuat = yawQuat.multiply(pitchQuat).multiply(rollQuat);
+
+    // Smoothly interpolate towards the target to remove jitter
+    this.model.quaternion.slerp(targetQuat, 0.1);
   }
   
   public setMovementDirection(direction: 'forward' | 'backward' | 'left' | 'right', active: boolean): void {
