@@ -1,9 +1,19 @@
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 import * as TWEEN from '@tweenjs/tween.js';
-import { Poolable } from '../utils/ObjectPool';
 
-export class Island implements Poolable {
+/**
+ * Island class representing interactive islands in the ocean
+ * Each island displays information about work experience
+ */
+export class Island {
+  // Type of island (not currently used but kept for future expansion)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // Experience job title
+  private jobTitle: string;
+  // Experience company
+  private company: string;
+
   // Three.js model and components
   private model: THREE.Group;
   private scene: THREE.Scene;
@@ -15,34 +25,37 @@ export class Island implements Poolable {
   
   // Position and state
   private _position: THREE.Vector3 = new THREE.Vector3();
-  private active: boolean = false;
+  private active: boolean = true;
   private seed: number;
   
   // Floating animation
-  private floatingTween!: TWEEN.Tween<{ y: number }>;
   private floatingParams = { y: 0 };
   
-  // Content
-  private contentSections: string[];
-  private contentIndex: number = 0;
-  
-  constructor(model: THREE.Group, scene: THREE.Scene, world: CANNON.World, contentSections: string[]) {
+  constructor(
+    model: THREE.Group, 
+    scene: THREE.Scene, 
+    world: CANNON.World, 
+    jobTitle: string,
+    company: string
+  ) {
     this.model = model;
     this.scene = scene;
     this.world = world;
-    this.contentSections = contentSections;
+    this.jobTitle = jobTitle;
+    this.company = company;
     this.seed = Math.random() * 1000;
     
-    // Scale the island model
-    const scale = 40 + Math.random() * 20; // Random scale between 40-60
+    // Scale the island model (reduced size)
+    const scale = 75;
     this.model.scale.set(scale, scale, scale);
     
-    // Set up physics body
-    const shapeRadius = scale * 0.4;
-    const shape = new CANNON.Cylinder(shapeRadius, shapeRadius, 30, 8);
+    
+    // Simplified physics body - cylinder is already Z-aligned in Cannon
+    const r = scale * 0.4;
+    const shape = new CANNON.Cylinder(r, r, 15, 8);
     this.body = new CANNON.Body({
       mass: 0, // Static body
-      position: new CANNON.Vec3(0, -15, 0), // Position island lower to be partially submerged
+      position: new CANNON.Vec3(0, 0, 0), // Center on the water
       shape,
       material: new CANNON.Material({
         friction: 0.5,
@@ -50,15 +63,21 @@ export class Island implements Poolable {
       })
     });
     
-    // Set proper orientation for the cylinder (corrected from previous version)
-    const quat = new CANNON.Quaternion();
-    quat.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2); // Negative for correct orientation
-    this.body.quaternion.copy(quat);
-    
-    // Apply a random rotation around Y axis
+    // Apply a random rotation around Y axis only for variation
     const yRotation = new CANNON.Quaternion();
     yRotation.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), Math.random() * Math.PI * 2);
-    this.body.quaternion = this.body.quaternion.mult(yRotation);
+    this.body.quaternion.copy(yRotation);
+    // Apply the same rotation to the model so it aligns visually with the physics body
+    this.model.quaternion.set(
+      this.body.quaternion.x,
+      this.body.quaternion.y,
+      this.body.quaternion.z,
+      this.body.quaternion.w
+    );
+    
+    // Add the model to the scene and body to the world
+    this.scene.add(this.model);
+    this.world.addBody(this.body);
     
     // Set up the floating animation
     this.setupFloatingAnimation();
@@ -69,7 +88,7 @@ export class Island implements Poolable {
   
   private setupFloatingAnimation(): void {
     // Create the floating animation with a random phase offset based on seed
-    this.floatingTween = new TWEEN.Tween(this.floatingParams)
+    new TWEEN.Tween(this.floatingParams)
       .to({ y: 1 }, 3000 + Math.random() * 1000)
       .repeat(Infinity)
       .yoyo(true)
@@ -81,20 +100,29 @@ export class Island implements Poolable {
   private createTitleMesh(): void {
     // Create a text geometry for the island title
     const canvas = document.createElement('canvas');
-    canvas.width = 256;
-    canvas.height = 128;
+    canvas.width = 512; // Larger canvas for more text
+    canvas.height = 256;
     const context = canvas.getContext('2d')!;
     
     // Clear the canvas
-    context.fillStyle = 'rgba(0, 0, 0, 0)';
+    context.fillStyle = 'rgba(0, 0, 0, 0.4)';
     context.fillRect(0, 0, canvas.width, canvas.height);
     
-    // Add text
-    context.font = 'bold 40px Arial';
+    // Add rounded rectangle background
+    context.beginPath();
+    context.roundRect(10, 10, canvas.width-20, canvas.height-20, 10);
+    context.fill();
+    
+    // Add company text
+    context.font = 'bold 45px "Pirate Font", "Palatino Linotype", serif';
     context.textAlign = 'center';
     context.textBaseline = 'middle';
     context.fillStyle = '#ffffff';
-    context.fillText(this.contentSections[this.contentIndex], canvas.width / 2, canvas.height / 2);
+    context.fillText(this.company, canvas.width / 2, canvas.height / 3);
+    
+    // Add job title
+    context.font = 'bold 35px "Pirate Font", "Times New Roman", serif';
+    context.fillText(this.jobTitle, canvas.width / 2, (canvas.height / 3) * 2);
     
     // Create a texture from the canvas
     const texture = new THREE.CanvasTexture(canvas);
@@ -106,9 +134,13 @@ export class Island implements Poolable {
       side: THREE.DoubleSide
     });
     
-    const geometry = new THREE.PlaneGeometry(20, 10);
+    // Banner size - adjusted smaller to fit island
+    const bannerWidth = 8/2;
+    const bannerHeight = 4/2;
+    const geometry = new THREE.PlaneGeometry(bannerWidth, bannerHeight);
     this.titleMesh = new THREE.Mesh(geometry, material);
-    this.titleMesh.position.y = 30;
+    // Position banner slightly above island top
+    this.titleMesh.position.y = bannerHeight; 
     
     // Add to the model
     this.model.add(this.titleMesh);
@@ -121,6 +153,13 @@ export class Island implements Poolable {
     this.model.position.x = this.body.position.x;
     this.model.position.y = this.body.position.y + this.floatingParams.y * 1.5; // Increased amplitude
     this.model.position.z = this.body.position.z;
+    // Ensure the model rotation matches the physics body's Y-axis rotation
+    this.model.quaternion.set(
+      this.body.quaternion.x,
+      this.body.quaternion.y,
+      this.body.quaternion.z,
+      this.body.quaternion.w
+    );
     
     // Update title mesh to face camera
     if (this.titleMesh) {
@@ -133,94 +172,24 @@ export class Island implements Poolable {
     }
   }
   
-  public reset(): void {
-    // Generate a new seed
-    this.seed = Math.random() * 1000;
-    
-    // Reset the floating animation
-    this.setupFloatingAnimation();
-    
-    // Random rotation
-    this.model.rotation.y = Math.random() * Math.PI * 2;
-  }
-  
-  public activate(): void {
-    if (this.active) return;
-    
-    this.active = true;
-    this.scene.add(this.model);
-    this.world.addBody(this.body);
-    
-    // Start the floating animation
-    this.floatingTween.start();
-  }
-  
-  public deactivate(): void {
-    if (!this.active) return;
-    
-    this.active = false;
-    this.scene.remove(this.model);
-    this.world.removeBody(this.body);
-    
-    // Stop the floating animation
-    this.floatingTween.stop();
-  }
-  
+  /**
+   * Returns if the island is active
+   */
   public isActive(): boolean {
     return this.active;
   }
   
-  public setContentIndex(index: number): void {
-    this.contentIndex = Math.min(index, this.contentSections.length - 1);
-    
-    // Update title mesh texture
-    if (this.titleMesh) {
-      const canvas = document.createElement('canvas');
-      canvas.width = 256;
-      canvas.height = 128;
-      const context = canvas.getContext('2d')!;
-      
-      // Clear the canvas
-      context.fillStyle = 'rgba(0, 0, 0, 0)';
-      context.fillRect(0, 0, canvas.width, canvas.height);
-      
-      // Add text
-      context.font = 'bold 40px Arial';
-      context.textAlign = 'center';
-      context.textBaseline = 'middle';
-      context.fillStyle = '#ffffff';
-      context.fillText(this.contentSections[this.contentIndex], canvas.width / 2, canvas.height / 2);
-      
-      // Update texture
-      const texture = new THREE.CanvasTexture(canvas);
-      (this.titleMesh.material as THREE.MeshBasicMaterial).map = texture;
-      (this.titleMesh.material as THREE.MeshBasicMaterial).needsUpdate = true;
-    }
+  /**
+   * Returns the company name for this island
+   */
+  public getCompany(): string {
+    return this.company;
   }
   
   public set position(pos: THREE.Vector3) {
     this._position.copy(pos);
     this.model.position.copy(pos);
-    
-    // Position the physics body at the given position
     this.body.position.set(pos.x, pos.y, pos.z);
-    
-    // Apply a random rotation around Y axis when repositioning
-    const yRotation = new CANNON.Quaternion();
-    yRotation.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), Math.random() * Math.PI * 2);
-    
-    // Maintain the basic cylinder orientation while adding random rotation
-    const baseQuat = new CANNON.Quaternion();
-    baseQuat.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
-    this.body.quaternion = baseQuat.mult(yRotation);
-    
-    // Update model rotation to match
-    this.model.quaternion.set(
-      this.body.quaternion.x,
-      this.body.quaternion.y,
-      this.body.quaternion.z,
-      this.body.quaternion.w
-    );
   }
   
   public get position(): THREE.Vector3 {
@@ -228,46 +197,152 @@ export class Island implements Poolable {
   }
   
   public interact(): void {
-    // Create overlay panel
-    const panel = document.createElement('div');
-    panel.className = 'overlay-panel overlay-active';
+    // Create pirate scroll overlay
+    const scrollOverlay = document.createElement('div');
+    scrollOverlay.className = 'pirate-scroll-overlay';
+    
+    // Create scroll container with the scroll image background
+    const scrollContainer = document.createElement('div');
+    scrollContainer.className = 'pirate-scroll';
+    scrollContainer.style.backgroundImage = 'url("/assets/vecteezy_ai-generated-parchment-scroll-ancient-papyrus-png-isolated_36421503.png")';
+    
+    // Add content area that will be scrollable
+    const scrollContent = document.createElement('div');
+    scrollContent.className = 'pirate-scroll-content';
+    
+    // Add job title and company header
+    const header = document.createElement('div');
+    header.className = 'pirate-scroll-header';
+    header.innerHTML = `<h1>${this.jobTitle}</h1><h2>${this.company}</h2>`;
+    scrollContent.appendChild(header);
     
     // Add close button
     const closeButton = document.createElement('button');
-    closeButton.className = 'close-button';
+    closeButton.className = 'pirate-scroll-close';
     closeButton.innerHTML = '&times;';
     closeButton.addEventListener('click', () => {
-      panel.remove();
+      // Enable ship controls again
+      const shipControlsElement = document.querySelector('.ship-controls');
+      if (shipControlsElement) {
+        shipControlsElement.classList.remove('disabled');
+      }
       
-      // Remove background blur
+      // Remove scroll with fade-out animation
+      scrollOverlay.classList.add('fade-out');
+      setTimeout(() => {
+        scrollOverlay.remove();
+      }, 500); // Match with CSS animation duration
+      
+      // Reduce background blur gradually
       const renderer = document.querySelector('canvas');
       if (renderer) {
-        renderer.style.filter = '';
+        renderer.style.filter = 'blur(2px)';
+        setTimeout(() => {
+          renderer.style.filter = '';
+        }, 500);
       }
     });
     
-    // Fetch and render content
-    fetch(`/content/${this.contentSections[this.contentIndex].toLowerCase()}.md`)
+    // Fetch and render content for the specific company
+    fetch('/content/experience.md')
       .then(response => response.text())
       .then(markdown => {
-        // Simple markdown parsing (for a real app, use a proper MD library)
-        const html = this.parseMarkdown(markdown);
-        panel.innerHTML += html;
-        panel.appendChild(closeButton);
+        // Extract only the relevant experience section based on company name
+        const relevantSection = this.extractCompanySection(markdown, this.company);
+        
+        // Parse markdown to HTML
+        const html = this.parseMarkdown(relevantSection);
+        
+        // Create content container
+        const contentContainer = document.createElement('div');
+        contentContainer.className = 'pirate-scroll-experience';
+        contentContainer.innerHTML = html;
+        
+        // Add to scroll content
+        scrollContent.appendChild(contentContainer);
+        
+        // Add a signature at the bottom for decoration
+        const signature = document.createElement('div');
+        signature.className = 'pirate-signature';
+        signature.textContent = '~ Captain Lex Pisco';
+        scrollContent.appendChild(signature);
       })
       .catch(error => {
-        panel.innerHTML = `<h1>Error loading content</h1><p>${error.message}</p>`;
-        panel.appendChild(closeButton);
+        scrollContent.innerHTML += `<div class="error"><h3>Error loading content</h3><p>${error.message}</p></div>`;
       });
     
-    // Add to UI
-    document.getElementById('ui-overlay')?.appendChild(panel);
+    // Add elements to DOM
+    scrollContainer.appendChild(scrollContent);
+    scrollContainer.appendChild(closeButton);
+    scrollOverlay.appendChild(scrollContainer);
+    document.body.appendChild(scrollOverlay);
+    
+    // Add keyboard handler for ESC key
+    const handleEscKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        closeButton.click();
+        document.removeEventListener('keydown', handleEscKey);
+      }
+    };
+    document.addEventListener('keydown', handleEscKey);
     
     // Add blur effect to background
     const renderer = document.querySelector('canvas');
     if (renderer) {
       renderer.style.filter = 'blur(5px)';
     }
+    
+    // Disable ship controls while viewing scroll
+    const shipControlsElement = document.querySelector('.ship-controls');
+    if (shipControlsElement) {
+      shipControlsElement.classList.add('disabled');
+    }
+    
+    // Add fade-in animation
+    setTimeout(() => {
+      scrollOverlay.classList.add('active');
+    }, 10);
+  }
+  
+  /**
+   * Extracts the section of markdown that corresponds to the given company
+   */
+  private extractCompanySection(markdown: string, companyName: string): string {
+    const lines = markdown.split('\n');
+    let extractedContent = '';
+    let inCompanySection = false;
+    // Variable to track when we've found the next company (not currently used but kept for clarity)
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    let nextCompanyFound = false;
+    
+    // Look for the company name in h2 headers
+    for (const line of lines) {
+      // Check if we found the company section
+      if (line.includes(companyName)) {
+        inCompanySection = true;
+        extractedContent += line + '\n';
+        continue;
+      }
+      
+      // If we're in the target company section but find another h2,
+      // we've reached the end of our target section
+      if (inCompanySection && line.startsWith('## ') && !line.includes(companyName)) {
+        nextCompanyFound = true;
+        break;
+      }
+      
+      // Add the line if we're in the right company section
+      if (inCompanySection) {
+        extractedContent += line + '\n';
+      }
+    }
+    
+    // If we didn't find the company or any content, return generic message
+    if (!inCompanySection || extractedContent.trim() === '') {
+      return `## ${companyName}\n\nNo detailed information available.`;
+    }
+    
+    return extractedContent;
   }
   
   private parseMarkdown(markdown: string): string {
