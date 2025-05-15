@@ -6,6 +6,7 @@ import { PerlinNoise } from './utils/PerlinNoise';
 import { Ship } from './entities/Ship';
 import { Island } from './entities/Island';
 import { ShipControls } from './controls/ShipControls';
+import GerstnerWater from './utils/GerstnerWater';
 
 /**
  * Main World class that manages the 3D environment, physics, and game entities
@@ -28,9 +29,10 @@ export default class World {
   private nearestIsland: Island | null = null;
   private interactionDistance: number = 30; // Distance at which interaction is possible (reduced for smaller islands)
   
-  // Environment
-  private ocean: THREE.Mesh | null = null;
+  // Environment (ocean replaced by Gerstner water)
   private skybox: THREE.Mesh | null = null;
+  // Gerstner water instance (initialized in createEnvironment)
+  private gerstnerWater!: GerstnerWater;
   
   // World generation
   private worldSeed: number;
@@ -86,7 +88,7 @@ export default class World {
     // Set up lighting
     this.setupLighting();
     
-    // Create ocean and skybox
+    // Create Gerstner water and skybox
     await this.createEnvironment();
     
     // Initialize ship
@@ -138,27 +140,11 @@ export default class World {
   }
   
   private async createEnvironment(): Promise<void> {
-    // Ocean
-    const oceanGeometry = new THREE.PlaneGeometry(10000, 10000, 32, 32);
-    
-    // Use the existing texture from threejs.org
-    const oceanTexture = new THREE.TextureLoader().load('https://threejs.org/examples/textures/water/Water_1_M_Normal.jpg');
-    oceanTexture.wrapS = THREE.RepeatWrapping;
-    oceanTexture.wrapT = THREE.RepeatWrapping;
-    oceanTexture.repeat.set(50, 50);
-    
-    const oceanMaterial = new THREE.MeshStandardMaterial({
-      color: 0x0066aa,
-      normalMap: oceanTexture,
-      normalScale: new THREE.Vector2(0.5, 0.5),
-      metalness: 0.2,
-      roughness: 0.7,
+    // Gerstner water ocean – with more dramatic waves
+    this.gerstnerWater = new GerstnerWater({
+      distortionScale: 2.5,
     });
-    
-    this.ocean = new THREE.Mesh(oceanGeometry, oceanMaterial);
-    this.ocean.rotation.x = -Math.PI / 2;
-    this.ocean.receiveShadow = true;
-    this.scene.add(this.ocean);
+    this.scene.add(this.gerstnerWater.water);
     
     // Enhance the skybox
     const skyboxGeometry = new THREE.SphereGeometry(3000, 64, 64);
@@ -174,7 +160,7 @@ export default class World {
   
   private async createShip(): Promise<void> {
     const shipModel = await loadModel('/models/pirate_ship.glb');
-    this.ship = new Ship(shipModel, this.scene, this.world);
+    this.ship = new Ship(shipModel, this.scene, this.world, this.gerstnerWater);
     
     // Ship's initial position is now handled in the Ship constructor
     
@@ -277,9 +263,12 @@ export default class World {
     const deltaTime = this.clock.getDelta();
     this.stats.deltaTime = deltaTime;
     
-    // Update TWEEN
+    // Update Gerstner water before physics and ship
+    if (this.gerstnerWater) {
+      this.gerstnerWater.update(deltaTime);
+    }
+    // Update TWEEN animations
     TWEEN.update();
-    
     // Update physics
     this.world.step(this.timeStep);
     
