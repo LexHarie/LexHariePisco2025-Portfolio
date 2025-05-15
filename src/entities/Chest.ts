@@ -189,15 +189,23 @@ export class Chest implements Poolable {
   }
   
   private applyBuoyancy(): void {
-    // Simple buoyancy: apply force proportional to chest's depth below water
+    // Enhanced buoyancy: apply force proportional to chest's depth below water
     const waterLevel = 0;
     const chestHeight = 6; // Total height of the chest
     const submergedRatio = Math.max(0, Math.min(1, (waterLevel - (this.body.position.y - chestHeight/2)) / chestHeight));
     
     if (submergedRatio > 0) {
-      // Apply upward force proportional to submerged volume
-      const buoyancyForce = new CANNON.Vec3(0, 12 * submergedRatio, 0);
+      // Apply upward force proportional to submerged volume (increased from 12 to 20)
+      const buoyancyForce = new CANNON.Vec3(0, 20 * submergedRatio, 0);
       this.body.applyLocalForce(buoyancyForce, new CANNON.Vec3(0, 0, 0));
+      
+      // Apply water resistance as damping
+      const dampingForce = new CANNON.Vec3(
+        -this.body.velocity.x * 1.0 * submergedRatio,
+        -this.body.velocity.y * 0.5 * submergedRatio, // Less vertical damping
+        -this.body.velocity.z * 1.0 * submergedRatio
+      );
+      this.body.applyForce(dampingForce, this.body.position);
     }
   }
   
@@ -265,6 +273,25 @@ export class Chest implements Poolable {
     this._position.copy(pos);
     this.model.position.copy(pos);
     this.body.position.set(pos.x, pos.y, pos.z);
+    
+    // Reset physics state when position is manually set
+    // This prevents issues with accumulated velocity when recycling objects
+    this.body.velocity.set(0, 0, 0);
+    this.body.angularVelocity.set(0, 0, 0);
+    
+    // Apply a small random rotation
+    const randomRotation = new CANNON.Quaternion();
+    randomRotation.setFromAxisAngle(
+      new CANNON.Vec3(0, 1, 0),
+      Math.random() * Math.PI * 2
+    );
+    this.body.quaternion.copy(randomRotation);
+    this.model.quaternion.set(
+      randomRotation.x,
+      randomRotation.y,
+      randomRotation.z,
+      randomRotation.w
+    );
   }
   
   public get position(): THREE.Vector3 {
