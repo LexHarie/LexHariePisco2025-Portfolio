@@ -1,0 +1,150 @@
+/* Reset and base styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+  color: #f0f0f0;
+  background-color: #050505;
+}
+
+canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* UI overlay */
+#ui-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* HUD elements */
+.hud {
+  position: absolute;
+  color: #f0f0f0;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  pointer-events: none;
+}
+
+.compass {
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.stats {
+  bottom: 20px;
+  left: 20px;
+}
+
+/* Overlay panels */
+.overlay-panel {
+  position: absolute;
+  top: 5vh;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60vw;
+  height: 90vh;
+  background-color: rgba(15, 25, 35, 0.85);
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(8px);
+  padding: 30px;
+  overflow-y: auto;
+  pointer-events: auto;
+  display: none;
+  z-index: 20;
+}
+
+.project-card {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 35vw;
+  height: 45vh;
+  background-color: rgba(15, 25, 35, 0.85);
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(8px);
+  padding: 20px;
+  pointer-events: auto;
+  display: none;
+  z-index: 20;
+}
+
+.overlay-active {
+  display: block;
+}
+
+.close-button {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  background: none;
+  border: none;
+  color: #f0f0f0;
+  font-size: 24px;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+/* Loading screen */
+.loading-screen {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: #050505;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  z-index: 100;
+}
+
+.loading-bar {
+  width: 300px;
+  height: 8px;
+  background-color: #101010;
+  border-radius: 4px;
+  margin-top: 20px;
+  overflow: hidden;
+}
+
+.loading-progress {
+  height: 100%;
+  width: 0%;
+  background-color: #f0c040;
+  border-radius: 4px;
+  transition: width 0.2s ease-out;
+}
+
+/* Interaction prompt */
+.interaction-prompt {
+  position: absolute;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: rgba(15, 25, 35, 0.85);
+  padding: 10px 20px;
+  border-radius: 20px;
+  font-size: 14px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
