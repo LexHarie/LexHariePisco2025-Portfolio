@@ -1,0 +1,18 @@
+{
+  "name": "pirate-portfolio",
+  "version": "1.0.0",
+  "description": "Interactive 3D pirate-themed portfolio built with Three.js and Cannon.js.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^4.5.14"
+  },
+  "dependencies": {
+    "@tweenjs/tween.js": "^25.0.0",
+    "cannon-es": "^0.20.0",
+    "three": "^0.176.0"
+  }
+}
