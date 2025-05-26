@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 import * as TWEEN from '@tweenjs/tween.js';
 // @ts-ignore – three/examples has no type declarations by default
-import { Water } from 'three/examples/jsm/objects/Water.js';
+
 
 import { loadModel } from './utils/LoadingManager';
 import { PerlinNoise } from './utils/PerlinNoise';
@@ -34,6 +34,10 @@ export default class World {
   // Environment (Water from three examples)
   private ocean: any | null = null; // Water instance (no TS types)
   private skybox: THREE.Mesh | null = null;
+
+  // Audio
+  private ambientSound: THREE.Audio | null = null;
+  private ambientStarted = false;
   
   // World generation
   private worldSeed: number;
@@ -108,6 +112,9 @@ export default class World {
     
     // Create UI elements
     this.createUI();
+
+    // Background audio
+    this.setupBackgroundAudio();
     
     // Debug helpers
     if (this.debug) {
@@ -147,30 +154,89 @@ export default class World {
   
   private async createEnvironment(): Promise<void> {
     // ------------------------------
-    // Animated ocean using three.js Water shader
+    // Gerstner-wave ocean
     // ------------------------------
 
-    const oceanGeometry = new THREE.PlaneGeometry(20000, 20000, 256, 256);
+    const oceanGeometry = new THREE.PlaneGeometry(20000, 20000, 512, 512);
 
-    const waterNormals = new THREE.TextureLoader().load(
-      'https://threejs.org/examples/textures/waternormals.jpg',
-      (texture) => {
-        texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-      },
-    );
-
-    this.ocean = new Water(oceanGeometry, {
-      textureWidth: 1024,
-      textureHeight: 1024,
-      waterNormals,
-      sunDirection: new THREE.Vector3(0.70707, 0.70707, 0.0),
-      sunColor: 0xffffff,
-      waterColor: 0x0066aa,
-      distortionScale: 4.0,
-      fog: true,
+    const oceanMaterial = new THREE.MeshStandardMaterial({
+      color: 0x0e6aa8,
+      roughness: 0.85,
+      metalness: 0.2,
+      transparent: true,
+      opacity: 0.98,
     });
 
+    // Attach Gerstner-wave deformation in onBeforeCompile hook
+    oceanMaterial.onBeforeCompile = (shader: any) => {
+      shader.uniforms.uTime = { value: 0 };
+
+      shader.uniforms.uWaveDir = {
+        value: [
+          new THREE.Vector2(1.0, 0.0),
+          new THREE.Vector2(0.8, 0.6),
+          new THREE.Vector2(-0.6, 0.8),
+          new THREE.Vector2(0.2, -1.0),
+        ],
+      } as any;
+
+      shader.uniforms.uAmplitude = { value: [2.0, 1.4, 1.0, 0.6] } as any;
+      shader.uniforms.uWavelength = { value: [12.0, 8.0, 6.0, 4.0] } as any;
+      shader.uniforms.uSpeed = { value: [1.0, 0.9, 0.8, 0.7] } as any;
+      shader.uniforms.uSteepness = { value: [0.6, 0.5, 0.45, 0.4] } as any;
+
+      // GLSL injection point
+      const gerstnerPars = /* glsl */ `
+        #define GERSTNER_WAVES 4
+        uniform float uTime;
+        uniform vec2 uWaveDir[GERSTNER_WAVES];
+        uniform float uAmplitude[GERSTNER_WAVES];
+        uniform float uWavelength[GERSTNER_WAVES];
+        uniform float uSteepness[GERSTNER_WAVES];
+        uniform float uSpeed[GERSTNER_WAVES];
+
+        const float G = 9.81;
+
+        // Returns displaced position (x, y, z)
+        vec3 gerstnerDisplace(vec3 position) {
+          vec3 newPos = position;
+          for (int i = 0; i < GERSTNER_WAVES; i++) {
+            float k = 2.0 * PI / uWavelength[i];
+            float c = sqrt(G / k);
+            vec2 d = normalize(uWaveDir[i]);
+            float f = k * dot(d, position.xz) + uSpeed[i] * k * uTime;
+            float A = uAmplitude[i];
+            float S = sin(f);
+            float C = cos(f);
+            float Qi = uSteepness[i] / (k * A * float(GERSTNER_WAVES));
+
+            newPos.x += Qi * A * d.x * C;
+            newPos.z += Qi * A * d.y * C;
+            newPos.y += A * S;
+          }
+          return newPos;
+        }
+      `;
+
+      shader.vertexShader = shader.vertexShader.replace(
+        '#include <common>',
+        `#include <common>\n${gerstnerPars}`,
+      );
+
+      shader.vertexShader = shader.vertexShader.replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>\n
+        vec3 transformedPos = gerstnerDisplace(transformed);\n
+        // use displaced position\n        transformed = transformedPos;`,
+      );
+
+      // Store reference for animation loop
+      oceanMaterial.userData.shader = shader;
+    };
+
+    this.ocean = new THREE.Mesh(oceanGeometry, oceanMaterial);
     this.ocean.rotation.x = -Math.PI / 2;
+    this.ocean.receiveShadow = true;
     this.scene.add(this.ocean);
     
     // Enhance the skybox
@@ -283,6 +349,80 @@ export default class World {
   private setupDebugHelpers(): void {
     // Debug helpers removed
   }
+
+  // -----------------------------
+  // Audio
+  // -----------------------------
+  private setupBackgroundAudio(): void {
+    const listener = new THREE.AudioListener();
+    this.camera.add(listener);
+
+    const sound = new THREE.Audio(listener);
+    const audioLoader = new THREE.AudioLoader();
+
+    // Try formats in order until one decodes successfully
+    const sources = [
+      '/audio/620446__klankbeeld__river-shipping-nl-1232pm-210921_0316.mp3',
+      '/audio/620446__klankbeeld__river-shipping-nl-1232pm-210921_0316.ogg',
+      '/audio/620446__klankbeeld__river-shipping-nl-1232pm-210921_0316.flac',
+    ];
+
+    const tryLoad = (idx = 0) => {
+      if (idx >= sources.length) {
+        console.warn('Background audio: all candidate files failed to decode.');
+        return;
+      }
+
+      audioLoader.load(
+        sources[idx],
+        (buffer) => {
+          sound.setBuffer(buffer);
+          sound.setLoop(true);
+          sound.setVolume(0.5);
+        },
+        undefined,
+        () => {
+          // onError: try next source
+          tryLoad(idx + 1);
+        },
+      );
+    };
+
+    tryLoad();
+
+    this.ambientSound = sound;
+
+    // Unlock audio on first user gesture if it was suspended
+    // unlock/resume on user gesture but actual playback will start on first ship movement
+    const resumeContext = () => {
+      if (this.ambientSound && this.ambientSound.context.state === 'suspended') {
+        this.ambientSound.context.resume();
+      }
+    };
+
+    document.addEventListener('click', resumeContext);
+    document.addEventListener('keydown', resumeContext);
+  }
+
+  private maybeStartAmbientSound(): void {
+    if (this.ambientStarted || !this.ambientSound || !this.ship) return;
+
+    const speed = this.ship.getCurrentSpeed();
+    const minSpeed = 0.5; // small threshold to avoid starting while idle
+
+    if (speed > minSpeed) {
+      if (this.ambientSound.context.state === 'suspended') {
+        // Wait until context resumed (handled by user gesture listener)
+        return;
+      }
+
+      // @ts-ignore property not in typings
+      if (!(this.ambientSound as any).isPlaying) {
+        this.ambientSound.play();
+      }
+      this.ambientStarted = true;
+    }
+  }
   
   public animate(): void {
     requestAnimationFrame(() => this.animate());
@@ -306,6 +446,9 @@ export default class World {
       
       // Find nearest island for interaction
       this.findNearestIsland();
+
+      // Attempt to start background sound when player starts moving
+      this.maybeStartAmbientSound();
     }
     
     // Update islands
@@ -313,9 +456,15 @@ export default class World {
       island.update(deltaTime);
     }
     
-    // Animate ocean shader
-    if (this.ocean && this.ocean.material && this.ocean.material.uniforms) {
-      this.ocean.material.uniforms['time'].value += deltaTime;
+    // Animate Gerstner ocean
+    if (
+      this.ocean &&
+      (this.ocean.material as THREE.MeshStandardMaterial).userData.shader
+    ) {
+      const shader: any = (this.ocean.material as THREE.MeshStandardMaterial).userData.shader;
+      if (shader && shader.uniforms && shader.uniforms.uTime) {
+        shader.uniforms.uTime.value += deltaTime;
+      }
     }
 
     // Update UI
