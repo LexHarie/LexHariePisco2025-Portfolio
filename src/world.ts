@@ -72,11 +72,14 @@ export default class World {
   constructor() {
     // Initialize Three.js scene
     this.scene = new THREE.Scene();
-    this.scene.fog = new THREE.FogExp2(0x1a3b5c, 0.0025);
+    // Lighten fog for better visibility
+    const fogColor = 0x2e6a8b;
+    this.scene.fog = new THREE.FogExp2(fogColor, 0.001);
     
     // Initialize camera with orthographic projection for isometric view
     const aspect = window.innerWidth / window.innerHeight;
-    const d = 50;
+    // Zoom factor: smaller value = closer view (adjusted for portrait portfolio)
+    const d = 300;
     this.camera = new THREE.OrthographicCamera(
       -d * aspect,
       d * aspect,
@@ -89,13 +92,20 @@ export default class World {
     this.camera.lookAt(new THREE.Vector3(0, 0, 0));
     
     // Initialize renderer
-    this.renderer = new THREE.WebGLRenderer({ antialias: false });
+    this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
-    this.renderer.setClearColor(0x1a3b5c);
+    // Lighten background color to match fog
+    this.renderer.setClearColor(fogColor);
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    document.body.appendChild(this.renderer.domElement);
+      // Append renderer canvas into the world container, or fallback to body
+      const container = document.getElementById('world-container');
+      if (container) {
+        container.appendChild(this.renderer.domElement);
+      } else {
+        document.body.appendChild(this.renderer.domElement);
+      }
     
     // Initialize physics world
     this.world = new CANNON.World({
@@ -118,9 +128,9 @@ export default class World {
     
     // Create ocean and skybox
     await this.createEnvironment();
-    // Generate random convex boundary and walls
+    // Generate random convex boundary for the mini-map (walls disabled)
     this.generateBoundary();
-    this.createBoundaryWalls();
+    // this.createBoundaryWalls(); // walls removed per user request
     
     // Initialize ship
     await this.createShip();
@@ -155,12 +165,12 @@ export default class World {
   }
   
   private setupLighting(): void {
-    // Ambient light
-    const ambientLight = new THREE.AmbientLight(0x6688aa, 0.5);
+    // Ambient light (brightened for visibility)
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
     this.scene.add(ambientLight);
     
     // Directional light (sun)
-    const directionalLight = new THREE.DirectionalLight(0xffffaa, 1.2);
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
     directionalLight.position.set(100, 100, 50);
     directionalLight.castShadow = true;
     
@@ -176,8 +186,8 @@ export default class World {
     
     this.scene.add(directionalLight);
     
-    // Hemisphere light
-    const hemisphereLight = new THREE.HemisphereLight(0xffeeb1, 0x080820, 0.8);
+    // Hemisphere light for sky and ground
+    const hemisphereLight = new THREE.HemisphereLight(0xffffff, 0x080820, 1.0);
     this.scene.add(hemisphereLight);
   }
   
@@ -590,7 +600,8 @@ export default class World {
   
   public handleResize(): void {
     const aspect = window.innerWidth / window.innerHeight;
-    const d = 50;
+    // Match initial view size for full boundary
+    const d = 300;
     this.camera.left = -d * aspect;
     this.camera.right = d * aspect;
     this.camera.top = d;
@@ -688,7 +699,7 @@ export default class World {
   private async createResumeChest(): Promise<void> {
     const chestModel = await loadModel('/models/treasure_chest.glb');
     // Scale and position chest
-    const scale = 10;
+    const scale = 1;
     chestModel.scale.set(scale, scale, scale);
     const pos = new THREE.Vector3(0, 0, 300);
     chestModel.position.copy(pos);
@@ -724,13 +735,7 @@ export default class World {
       minZ: Math.min(...zs), maxZ: Math.max(...zs)
     };
     this.boundary = verts;
-    // Visualize boundary
-    const points3: THREE.Vector3[] = verts.map(v => new THREE.Vector3(v.x, 1, v.y));
-    points3.push(points3[0].clone());
-    const geom = new THREE.BufferGeometry().setFromPoints(points3);
-    const mat = new THREE.LineBasicMaterial({ color: 0xffffff });
-    const line = new THREE.Line(geom, mat);
-    this.scene.add(line);
+    // Boundary visualization is represented by 3D walls for visibility
   }
   
   /** Create static physics walls along the boundary to confine the ship */
@@ -755,6 +760,17 @@ export default class World {
       const angle = Math.atan2(dz, dx);
       wall.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), angle);
       this.world.addBody(wall);
+      // Visualize boundary wall with a wooden look
+      const wallHeightVis = 20;
+      const wallThicknessVis = thickness * 2;
+      const wallGeometry = new THREE.BoxGeometry(length, wallHeightVis, wallThicknessVis);
+      const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
+      const wallMesh = new THREE.Mesh(wallGeometry, wallMaterial);
+      wallMesh.position.set(midX, wallHeightVis / 2, midZ);
+      wallMesh.rotation.y = angle;
+      wallMesh.receiveShadow = true;
+      wallMesh.castShadow = true;
+      this.scene.add(wallMesh);
     }
   }
 }
