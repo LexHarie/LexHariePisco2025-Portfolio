@@ -11,9 +11,10 @@ export class ShipControls {
   
   // Camera settings
   private cameraPivotPoint = new THREE.Vector3();
-  private cameraDistance = 80;
-  private minCameraDistance = 40;
-  private maxCameraDistance = 120;
+  // Initial zoom (distance from ship), and zoom limits
+  private cameraDistance = 800;
+  private minCameraDistance = 200;
+  private maxCameraDistance = 2000;
   private cameraSmoothingFactor = 0.1;
   private readonly isoPitch = THREE.MathUtils.degToRad(35);
   private readonly isoYaw = THREE.MathUtils.degToRad(45);
@@ -46,8 +47,8 @@ export class ShipControls {
     document.addEventListener('keydown', (event) => this.handleKeyDown(event));
     document.addEventListener('keyup', (event) => this.handleKeyUp(event));
     
-    // Zoom only
-    document.addEventListener('wheel', (event) => this.handleMouseWheel(event));
+    // Zoom disabled to prevent fog/visibility issues on scroll
+    // document.addEventListener('wheel', (event) => this.handleMouseWheel(event));
     
     // Disable context menu on right click
     document.addEventListener('contextmenu', (event) => event.preventDefault());
