@@ -13,7 +13,8 @@ export class Ship {
   private shape: CANNON.Box;
   
   // Movement
-  private acceleration: number = 15;
+  // Increased acceleration for faster ship speed
+  private acceleration: number = 30;
   private rotationSpeed: number = Math.PI / 4; // 45 degrees per second
   
   // Stamina
@@ -47,7 +48,7 @@ export class Ship {
     this.world = world;
     
     // Scale the ship model
-    this.model.scale.set(20, 20, 20);
+    this.model.scale.set(30, 30, 30);
     
     // Set up physics body
     this.shape = new CANNON.Box(new CANNON.Vec3(8, 3, 15));
@@ -127,15 +128,16 @@ export class Ship {
       return texture;
     };
 
-    const sprayMaterial = new THREE.SpriteMaterial({
-      map: generateRadialTexture(),
-      transparent: true,
-      opacity: 0,
-      depthWrite: false,
-    });
-    this.spraySprite = new THREE.Sprite(sprayMaterial);
-    this.spraySprite.scale.set(20, 20, 1); // Adjust size as needed
-    this.model.add(this.spraySprite);
+    // Water spray effect disabled to remove circular white sprite
+    // const sprayMaterial = new THREE.SpriteMaterial({
+    //   map: generateRadialTexture(),
+    //   transparent: true,
+    //   opacity: 0,
+    //   depthWrite: false,
+    // });
+    // this.spraySprite = new THREE.Sprite(sprayMaterial);
+    // this.spraySprite.scale.set(20, 20, 1);
+    // this.model.add(this.spraySprite);
     
     // Update model position to match initial body position
     this.model.position.set(
@@ -174,8 +176,8 @@ export class Ship {
     // Update stamina
     this.updateStamina(deltaTime);
 
-    // Update water spray visual
-    this.updateSprayEffect();
+    // Water spray effect disabled
+    // this.updateSprayEffect();
 
     // Wake trail spawning & update
     this.updateWake(deltaTime);
