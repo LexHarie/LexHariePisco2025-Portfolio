@@ -62,8 +62,10 @@ export default class World {
   private resumeChestBaseY: number = 0;
   private resumeInteractDistance: number = 20;
   
-  // Mini-map bounds (world coordinates to map image coordinates)
-  private mapBounds = { minX: -500, maxX: 500, minZ: -500, maxZ: 500 };
+  // Mini-map bounds (updated from boundary)
+  private mapBounds = { minX: 0, maxX: 0, minZ: 0, maxZ: 0 };
+  // World movement boundary (convex polygon on XZ)
+  private boundary: THREE.Vector2[] = [];
   // Activity area birds simulation
   private birds: Birds | null = null;
   
@@ -116,6 +118,9 @@ export default class World {
     
     // Create ocean and skybox
     await this.createEnvironment();
+    // Generate random convex boundary and walls
+    this.generateBoundary();
+    this.createBoundaryWalls();
     
     // Initialize ship
     await this.createShip();
@@ -698,5 +703,58 @@ export default class World {
     const center = new THREE.Vector3(-300, 0, 100);
     // Create birds simulation in specified area
     this.birds = new Birds(this.scene, center, 200, 100);
+  }
+  
+  /** Generate a random convex boundary polygon */
+  private generateBoundary(): void {
+    const num = 8;
+    const minR = 400;
+    const maxR = 600;
+    const verts: THREE.Vector2[] = [];
+    for (let i = 0; i < num; i++) {
+      const angle = (i / num) * Math.PI * 2 + (Math.random() - 0.5) * (Math.PI * 2 / num) * 0.3;
+      const r = minR + Math.random() * (maxR - minR);
+      verts.push(new THREE.Vector2(Math.cos(angle) * r, Math.sin(angle) * r));
+    }
+    // Compute bounding box for mini-map
+    const xs = verts.map(v => v.x);
+    const zs = verts.map(v => v.y);
+    this.mapBounds = {
+      minX: Math.min(...xs), maxX: Math.max(...xs),
+      minZ: Math.min(...zs), maxZ: Math.max(...zs)
+    };
+    this.boundary = verts;
+    // Visualize boundary
+    const points3: THREE.Vector3[] = verts.map(v => new THREE.Vector3(v.x, 1, v.y));
+    points3.push(points3[0].clone());
+    const geom = new THREE.BufferGeometry().setFromPoints(points3);
+    const mat = new THREE.LineBasicMaterial({ color: 0xffffff });
+    const line = new THREE.Line(geom, mat);
+    this.scene.add(line);
+  }
+  
+  /** Create static physics walls along the boundary to confine the ship */
+  private createBoundaryWalls(): void {
+    if (!this.boundary.length) return;
+    const height = 100;
+    const thickness = 5;
+    for (let i = 0; i < this.boundary.length; i++) {
+      const v1 = this.boundary[i];
+      const v2 = this.boundary[(i + 1) % this.boundary.length];
+      const dx = v2.x - v1.x;
+      const dz = v2.y - v1.y;
+      const length = Math.sqrt(dx * dx + dz * dz);
+      const midX = (v1.x + v2.x) / 2;
+      const midZ = (v1.y + v2.y) / 2;
+      // Create box shape
+      const shape = new CANNON.Box(new CANNON.Vec3(length / 2, height, thickness));
+      const wall = new CANNON.Body({ mass: 0, shape });
+      // Position wall
+      wall.position.set(midX, 0, midZ);
+      // Rotate to align with edge
+      const angle = Math.atan2(dz, dx);
+      wall.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), angle);
+      this.world.addBody(wall);
+    }
   }
 }
