@@ -1,6 +1,9 @@
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 import * as TWEEN from '@tweenjs/tween.js';
+// @ts-ignore – three/examples has no type declarations by default
+import { Water } from 'three/examples/jsm/objects/Water.js';
+
 import { loadModel } from './utils/LoadingManager';
 import { PerlinNoise } from './utils/PerlinNoise';
 import { Ship } from './entities/Ship';
@@ -28,8 +31,8 @@ export default class World {
   private nearestIsland: Island | null = null;
   private interactionDistance: number = 30; // Distance at which interaction is possible (reduced for smaller islands)
   
-  // Environment
-  private ocean: THREE.Mesh | null = null;
+  // Environment (Water from three examples)
+  private ocean: any | null = null; // Water instance (no TS types)
   private skybox: THREE.Mesh | null = null;
   
   // World generation
@@ -143,26 +146,31 @@ export default class World {
   }
   
   private async createEnvironment(): Promise<void> {
-    // Ocean
-    const oceanGeometry = new THREE.PlaneGeometry(2000, 2000, 32, 32);
-    
-    // Use the existing texture from threejs.org
-    const oceanTexture = new THREE.TextureLoader().load('https://threejs.org/examples/textures/water/Water_1_M_Normal.jpg');
-    oceanTexture.wrapS = THREE.RepeatWrapping;
-    oceanTexture.wrapT = THREE.RepeatWrapping;
-    oceanTexture.repeat.set(50, 50);
-    
-    const oceanMaterial = new THREE.MeshStandardMaterial({
-      color: 0x0066aa,
-      normalMap: oceanTexture,
-      normalScale: new THREE.Vector2(0.5, 0.5),
-      metalness: 0.2,
-      roughness: 0.7,
+    // ------------------------------
+    // Animated ocean using three.js Water shader
+    // ------------------------------
+
+    const oceanGeometry = new THREE.PlaneGeometry(20000, 20000, 256, 256);
+
+    const waterNormals = new THREE.TextureLoader().load(
+      'https://threejs.org/examples/textures/waternormals.jpg',
+      (texture) => {
+        texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+      },
+    );
+
+    this.ocean = new Water(oceanGeometry, {
+      textureWidth: 1024,
+      textureHeight: 1024,
+      waterNormals,
+      sunDirection: new THREE.Vector3(0.70707, 0.70707, 0.0),
+      sunColor: 0xffffff,
+      waterColor: 0x0066aa,
+      distortionScale: 4.0,
+      fog: true,
     });
-    
-    this.ocean = new THREE.Mesh(oceanGeometry, oceanMaterial);
+
     this.ocean.rotation.x = -Math.PI / 2;
-    this.ocean.receiveShadow = true;
     this.scene.add(this.ocean);
     
     // Enhance the skybox
@@ -305,6 +313,11 @@ export default class World {
       island.update(deltaTime);
     }
     
+    // Animate ocean shader
+    if (this.ocean && this.ocean.material && this.ocean.material.uniforms) {
+      this.ocean.material.uniforms['time'].value += deltaTime;
+    }
+
     // Update UI
     this.updateUI();
     
