@@ -13,7 +13,7 @@ import { ShipControls } from './controls/ShipControls';
 export default class World {
   // Three.js components
   private scene: THREE.Scene;
-  private camera: THREE.PerspectiveCamera;
+  private camera: THREE.OrthographicCamera;
   private renderer: THREE.WebGLRenderer;
   private clock: THREE.Clock;
   
@@ -49,14 +49,19 @@ export default class World {
     this.scene = new THREE.Scene();
     this.scene.fog = new THREE.FogExp2(0x1a3b5c, 0.0025);
     
-    // Initialize camera
-    this.camera = new THREE.PerspectiveCamera(
-      75, 
-      window.innerWidth / window.innerHeight, 
-      0.1, 
+    // Initialize camera with orthographic projection for isometric view
+    const aspect = window.innerWidth / window.innerHeight;
+    const d = 50;
+    this.camera = new THREE.OrthographicCamera(
+      -d * aspect,
+      d * aspect,
+      d,
+      -d,
+      0.1,
       3000
     );
-    this.camera.position.set(0, 15, -30);
+    this.camera.position.set(100, 100, 100);
+    this.camera.lookAt(new THREE.Vector3(0, 0, 0));
     
     // Initialize renderer
     this.renderer = new THREE.WebGLRenderer({ antialias: false });
@@ -139,7 +144,7 @@ export default class World {
   
   private async createEnvironment(): Promise<void> {
     // Ocean
-    const oceanGeometry = new THREE.PlaneGeometry(10000, 10000, 32, 32);
+    const oceanGeometry = new THREE.PlaneGeometry(2000, 2000, 32, 32);
     
     // Use the existing texture from threejs.org
     const oceanTexture = new THREE.TextureLoader().load('https://threejs.org/examples/textures/water/Water_1_M_Normal.jpg');
@@ -382,7 +387,12 @@ export default class World {
   }
   
   public handleResize(): void {
-    this.camera.aspect = window.innerWidth / window.innerHeight;
+    const aspect = window.innerWidth / window.innerHeight;
+    const d = 50;
+    this.camera.left = -d * aspect;
+    this.camera.right = d * aspect;
+    this.camera.top = d;
+    this.camera.bottom = -d;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(window.innerWidth, window.innerHeight);
   }
@@ -391,7 +401,7 @@ export default class World {
     return this.ship;
   }
   
-  public getCamera(): THREE.PerspectiveCamera {
+  public getCamera(): THREE.OrthographicCamera {
     return this.camera;
   }
   
