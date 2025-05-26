@@ -9,6 +9,8 @@ import { PerlinNoise } from './utils/PerlinNoise';
 import { Ship } from './entities/Ship';
 import { Island } from './entities/Island';
 import { ShipControls } from './controls/ShipControls';
+import { Bottle } from './entities/Bottle';
+import { Birds } from './entities/Birds';
 
 /**
  * Main World class that manages the 3D environment, physics, and game entities
@@ -50,6 +52,20 @@ export default class World {
   
   // Debug
   public debug: boolean = false; // Kept but not used
+  
+  // Project bottles (floating scroll-in-bottle entities)
+  private bottles: Bottle[] = [];
+  private bottleDistance: number = 20;
+  
+  // Resume chest (floating treasure chest for resume)
+  private resumeChestModel: THREE.Group | null = null;
+  private resumeChestBaseY: number = 0;
+  private resumeInteractDistance: number = 20;
+  
+  // Mini-map bounds (world coordinates to map image coordinates)
+  private mapBounds = { minX: -500, maxX: 500, minZ: -500, maxZ: 500 };
+  // Activity area birds simulation
+  private birds: Birds | null = null;
   
   constructor() {
     // Initialize Three.js scene
@@ -104,8 +120,16 @@ export default class World {
     // Initialize ship
     await this.createShip();
     
-    // Create experience islands
-    await this.createExperienceIslands();
+    // Create experience islands (disabled)
+    // await this.createExperienceIslands();
+    
+    // Create floating project bottles (click proximity opens project link)
+    await this.createProjectBottles();
+    
+    // Create floating resume chest (press 'O' near chest to open resume PDF)
+    await this.createResumeChest();
+    // Create activity area birds simulation
+    this.createActivityArea();
     
     // Setup event listeners
     this.setupEventListeners();
@@ -270,34 +294,9 @@ export default class World {
    * Creates experience islands and places them in the world
    */
   private async createExperienceIslands(): Promise<void> {
-    // Load island model
-    const islandModel = await loadModel('/models/pirate_island.glb');
-    
-    // Create TechCorp Island (first job)
-    const techCorpIsland = new Island(
-      islandModel.clone(),
-      this.scene,
-      this.world,
-      'experience',
-      'Senior Frontend Developer',
-    );
-    
-    // Position TechCorp Island to the east
-    techCorpIsland.position = new THREE.Vector3(200, 0, 50);
-    this.islands.push(techCorpIsland);
-    
-    // Create Creative Digital Agency Island (second job)
-    const creativeDigitalIsland = new Island(
-      islandModel.clone(),
-      this.scene,
-      this.world,
-      'experience',
-      'Web Developer',
-    );
-    
-    // Position Creative Digital Agency Island to the west
-    creativeDigitalIsland.position = new THREE.Vector3(-250, 0, -150);
-    this.islands.push(creativeDigitalIsland);
+    // Pirate island loading disabled: skip adding any experience islands.
+    this.islands = [];
+    return;
   }
   
   private setupEventListeners(): void {
@@ -328,6 +327,10 @@ export default class World {
       if (event.key === 'e' || event.key === 'E') {
         this.handleInteraction();
       }
+      // Add O key for opening resume chest
+      if (event.key === 'o' || event.key === 'O') {
+        this.handleOpenResume();
+      }
     });
   }
   
@@ -343,6 +346,21 @@ export default class World {
       const uiOverlay = document.createElement('div');
       uiOverlay.id = 'ui-overlay';
       document.body.appendChild(uiOverlay);
+    }
+    // Create mini-map display
+    if (!document.getElementById('mini-map')) {
+      const mini = document.createElement('div');
+      mini.id = 'mini-map';
+      // Map image
+      const img = document.createElement('img');
+      img.src = '/assets/PortfolioMap.png';
+      img.alt = 'Mini Map';
+      mini.appendChild(img);
+      // Marker for user position
+      const marker = document.createElement('div');
+      marker.className = 'marker';
+      mini.appendChild(marker);
+      document.body.appendChild(mini);
     }
   }
   
@@ -455,6 +473,19 @@ export default class World {
     for (const island of this.islands) {
       island.update(deltaTime);
     }
+    // Update project bottles drift and bobbing
+    for (const bottle of this.bottles) {
+      bottle.update(deltaTime);
+    }
+    // Update resume chest bobbing
+    if (this.resumeChestModel) {
+      const t = this.clock.getElapsedTime();
+      this.resumeChestModel.position.y = this.resumeChestBaseY + Math.sin(t) * 2;
+    }
+    // Update birds simulation in activity area
+    if (this.birds) {
+      this.birds.update(deltaTime);
+    }
     
     // Animate Gerstner ocean
     if (
@@ -516,6 +547,10 @@ export default class World {
       // No nearby island, hide prompt
       promptEl.classList.remove('visible');
     }
+    // Update mini-map marker
+    this.updateMiniMap();
+    // Check project bottle proximity and open links
+    this.checkProjectBottles();
   }
   
   /**
@@ -573,5 +608,95 @@ export default class World {
   
   public getWorld(): CANNON.World {
     return this.world;
+  }
+  
+  /** Check project bottle proximity and open links when in range */
+  private checkProjectBottles(): void {
+    if (!this.ship) return;
+    for (const bottle of this.bottles) {
+      if ((bottle as any).triggered) continue;
+      const dist = this.ship.position.distanceTo((bottle as any).getPosition());
+      if (dist < this.bottleDistance) {
+        (bottle as any).triggered = true;
+        window.open((bottle as any).link, '_blank', 'noopener');
+      }
+    }
+  }
+  
+  /** Update mini-map red marker based on ship position */
+  private updateMiniMap(): void {
+    const mapEl = document.getElementById('mini-map');
+    const marker = mapEl?.querySelector('.marker') as HTMLElement | null;
+    const img = mapEl?.querySelector('img') as HTMLImageElement | null;
+    if (!this.ship || !mapEl || !marker || !img) return;
+    const rect = img.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+    const x = this.ship.position.x;
+    const z = this.ship.position.z;
+    const normX = (x - this.mapBounds.minX) / (this.mapBounds.maxX - this.mapBounds.minX);
+    const normZ = (z - this.mapBounds.minZ) / (this.mapBounds.maxZ - this.mapBounds.minZ);
+    const px = normX * rect.width;
+    const py = (1 - normZ) * rect.height;
+    marker.style.left = `${px}px`;
+    marker.style.top = `${py}px`;
+  }
+  
+  /** Handle pressing 'O' to open resume PDF when near the chest */
+  private handleOpenResume(): void {
+    if (!this.ship || !this.resumeChestModel) return;
+    const chestPos = this.resumeChestModel.position;
+    const dist = this.ship.position.distanceTo(chestPos);
+    if (dist < this.resumeInteractDistance) {
+      window.open('/assets/Pisco-Latest-Resume-Nov-21-2024.pdf', '_blank', 'noopener');
+    }
+  }
+  
+  /** Instantiate floating bottles for projects */
+  private async createProjectBottles(): Promise<void> {
+    const bottleTemplate = await loadModel('/models/bottle_with_scroll.glb');
+    // Set up custom project links and assets
+    const links = [
+      'https://app.splurge.art/',
+      'https://www.youtube.com/watch?v=t6vxzBi99hQ',
+      'https://gitlab.com/moodnft'
+    ];
+    const assetImages = [
+      '/assets/project_1.png',
+      '/assets/project_2.png',
+      '/assets/project_3.jpeg'
+    ];
+    // Define positions for three project bottles
+    const positions = [
+      new THREE.Vector3(300, 0, -100),
+      new THREE.Vector3(300, 0, 50),
+      new THREE.Vector3(300, 0, 200)
+    ];
+    for (let i = 0; i < links.length; i++) {
+      const link = links[i];
+      const tex = assetImages[i];
+      const bottle = new Bottle(bottleTemplate, this.scene, { link, textureUrl: tex, position: positions[i] });
+      this.bottles.push(bottle);
+    }
+  }
+  
+  /** Instantiate floating treasure chest for resume */
+  private async createResumeChest(): Promise<void> {
+    const chestModel = await loadModel('/models/treasure_chest.glb');
+    // Scale and position chest
+    const scale = 10;
+    chestModel.scale.set(scale, scale, scale);
+    const pos = new THREE.Vector3(0, 0, 300);
+    chestModel.position.copy(pos);
+    this.scene.add(chestModel);
+    this.resumeChestModel = chestModel;
+    this.resumeChestBaseY = pos.y;
+  }
+  
+  /** Instantiate activity area birds simulation */
+  private createActivityArea(): void {
+    // Center and parameters for activity zone
+    const center = new THREE.Vector3(-300, 0, 100);
+    // Create birds simulation in specified area
+    this.birds = new Birds(this.scene, center, 200, 100);
   }
 }
