@@ -6,7 +6,6 @@ import { PerlinNoise } from './utils/PerlinNoise';
 import { Ship } from './entities/Ship';
 import { Island } from './entities/Island';
 import { ShipControls } from './controls/ShipControls';
-import GerstnerWater from './utils/GerstnerWater';
 
 /**
  * Main World class that manages the 3D environment, physics, and game entities
@@ -14,7 +13,7 @@ import GerstnerWater from './utils/GerstnerWater';
 export default class World {
   // Three.js components
   private scene: THREE.Scene;
-  private camera: THREE.PerspectiveCamera;
+  private camera: THREE.OrthographicCamera;
   private renderer: THREE.WebGLRenderer;
   private clock: THREE.Clock;
   
@@ -27,12 +26,11 @@ export default class World {
   private shipControls: ShipControls | null = null;
   private islands: Island[] = [];
   private nearestIsland: Island | null = null;
-  private interactionDistance: number = 300; // Increased distance for easier island interaction
+  private interactionDistance: number = 30; // Distance at which interaction is possible (reduced for smaller islands)
   
-  // Environment (ocean replaced by Gerstner water)
+  // Environment
+  private ocean: THREE.Mesh | null = null;
   private skybox: THREE.Mesh | null = null;
-  // Gerstner water instance (initialized in createEnvironment)
-  private gerstnerWater!: GerstnerWater;
   
   // World generation
   private worldSeed: number;
@@ -51,14 +49,19 @@ export default class World {
     this.scene = new THREE.Scene();
     this.scene.fog = new THREE.FogExp2(0x1a3b5c, 0.0025);
     
-    // Initialize camera
-    this.camera = new THREE.PerspectiveCamera(
-      75, 
-      window.innerWidth / window.innerHeight, 
-      0.1, 
+    // Initialize camera with orthographic projection for isometric view
+    const aspect = window.innerWidth / window.innerHeight;
+    const d = 50;
+    this.camera = new THREE.OrthographicCamera(
+      -d * aspect,
+      d * aspect,
+      d,
+      -d,
+      0.1,
       3000
     );
-    this.camera.position.set(0, 15, -30);
+    this.camera.position.set(100, 100, 100);
+    this.camera.lookAt(new THREE.Vector3(0, 0, 0));
     
     // Initialize renderer
     this.renderer = new THREE.WebGLRenderer({ antialias: false });
@@ -88,7 +91,7 @@ export default class World {
     // Set up lighting
     this.setupLighting();
     
-    // Create Gerstner water and skybox
+    // Create ocean and skybox
     await this.createEnvironment();
     
     // Initialize ship
@@ -140,11 +143,27 @@ export default class World {
   }
   
   private async createEnvironment(): Promise<void> {
-    // Gerstner water ocean – milder waves
-    this.gerstnerWater = new GerstnerWater({
-      distortionScale: 0.5,
+    // Ocean
+    const oceanGeometry = new THREE.PlaneGeometry(2000, 2000, 32, 32);
+    
+    // Use the existing texture from threejs.org
+    const oceanTexture = new THREE.TextureLoader().load('https://threejs.org/examples/textures/water/Water_1_M_Normal.jpg');
+    oceanTexture.wrapS = THREE.RepeatWrapping;
+    oceanTexture.wrapT = THREE.RepeatWrapping;
+    oceanTexture.repeat.set(50, 50);
+    
+    const oceanMaterial = new THREE.MeshStandardMaterial({
+      color: 0x0066aa,
+      normalMap: oceanTexture,
+      normalScale: new THREE.Vector2(0.5, 0.5),
+      metalness: 0.2,
+      roughness: 0.7,
     });
-    this.scene.add(this.gerstnerWater.water);
+    
+    this.ocean = new THREE.Mesh(oceanGeometry, oceanMaterial);
+    this.ocean.rotation.x = -Math.PI / 2;
+    this.ocean.receiveShadow = true;
+    this.scene.add(this.ocean);
     
     // Enhance the skybox
     const skyboxGeometry = new THREE.SphereGeometry(3000, 64, 64);
@@ -160,7 +179,7 @@ export default class World {
   
   private async createShip(): Promise<void> {
     const shipModel = await loadModel('/models/pirate_ship.glb');
-    this.ship = new Ship(shipModel, this.scene, this.world, this.gerstnerWater);
+    this.ship = new Ship(shipModel, this.scene, this.world);
     
     // Ship's initial position is now handled in the Ship constructor
     
@@ -186,7 +205,7 @@ export default class World {
       this.scene,
       this.world,
       'experience',
-      'Software Engineer',
+      'Senior Frontend Developer',
     );
     
     // Position TechCorp Island to the east
@@ -199,7 +218,7 @@ export default class World {
       this.scene,
       this.world,
       'experience',
-      'Backend Engineeer',
+      'Web Developer',
     );
     
     // Position Creative Digital Agency Island to the west
@@ -263,12 +282,9 @@ export default class World {
     const deltaTime = this.clock.getDelta();
     this.stats.deltaTime = deltaTime;
     
-    // Update Gerstner water before physics and ship
-    if (this.gerstnerWater) {
-      this.gerstnerWater.update(deltaTime);
-    }
-    // Update TWEEN animations
+    // Update TWEEN
     TWEEN.update();
+    
     // Update physics
     this.world.step(this.timeStep);
     
@@ -371,7 +387,12 @@ export default class World {
   }
   
   public handleResize(): void {
-    this.camera.aspect = window.innerWidth / window.innerHeight;
+    const aspect = window.innerWidth / window.innerHeight;
+    const d = 50;
+    this.camera.left = -d * aspect;
+    this.camera.right = d * aspect;
+    this.camera.top = d;
+    this.camera.bottom = -d;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(window.innerWidth, window.innerHeight);
   }
@@ -380,7 +401,7 @@ export default class World {
     return this.ship;
   }
   
-  public getCamera(): THREE.PerspectiveCamera {
+  public getCamera(): THREE.OrthographicCamera {
     return this.camera;
   }
   

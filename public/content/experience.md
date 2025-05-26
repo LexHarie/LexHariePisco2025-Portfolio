@@ -1,6 +1,6 @@
 # Experience
 
-## Software Engineer | Florida Reachlink LLC
+## Senior Frontend Developer | TechCorp Inc.
 **2023 - Present**
 
 - Led development of interactive 3D product visualization platform
@@ -8,7 +8,7 @@
 - Implemented advanced camera controls and physics interactions
 - Mentored junior developers on 3D web technologies
 
-## Backend Engineer | Whitecloak Technologies
+## Web Developer | Creative Digital Agency
 **2020 - 2023**
 
 - Developed responsive and accessible websites for clients

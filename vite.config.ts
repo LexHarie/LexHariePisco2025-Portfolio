@@ -12,12 +12,8 @@ export default defineConfig({
     target: 'esnext',
     outDir: 'dist',
     assetsDir: 'assets',
-    minify: 'terser',
-    terserOptions: {
-      compress: {
-        drop_console: true
-      }
-    },
+    // Disable minification to avoid optional terser dependency during build
+    minify: false,
     rollupOptions: {
       output: {
         manualChunks: {

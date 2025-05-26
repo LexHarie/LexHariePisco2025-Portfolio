@@ -311,9 +311,6 @@ export class Island {
     const lines = markdown.split('\n');
     let extractedContent = '';
     let inCompanySection = false;
-    // Variable to track when we've found the next company (not currently used but kept for clarity)
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    let nextCompanyFound = false;
     
     // Look for the company name in h2 headers
     for (const line of lines) {
@@ -327,7 +324,6 @@ export class Island {
       // If we're in the target company section but find another h2,
       // we've reached the end of our target section
       if (inCompanySection && line.startsWith('## ') && !line.includes(companyName)) {
-        nextCompanyFound = true;
         break;
       }
       
@@ -357,7 +353,7 @@ export class Island {
       // Italic
       .replace(/\*(.*?)\*/g, '<em>$1</em>')
       // Lists
-      .replace(/^\s*?\- (.*$)/gm, '<li>$1</li>')
+      .replace(/^\s*- (.*$)/gm, '<li>$1</li>')
       // Paragraphs
       .replace(/^([^<].*?)$/gm, '<p>$1</p>')
       // Clean up empty paragraphs

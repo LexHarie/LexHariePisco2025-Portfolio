@@ -11,9 +11,8 @@
     "isolatedModules": true,
     "esModuleInterop": true,
     "noEmit": true,
-    // Temporarily disable unused locals/parameters to bypass pre-existing code issues
-    "noUnusedLocals": false,
-    "noUnusedParameters": false,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "noImplicitReturns": true,
     "skipLibCheck": true,
     "baseUrl": ".",

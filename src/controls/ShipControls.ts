@@ -7,20 +7,17 @@ import { Chest } from '../entities/Chest';
 export class ShipControls {
   // References
   private ship: Ship;
-  private camera: THREE.PerspectiveCamera;
+  private camera: THREE.OrthographicCamera;
   
   // Camera settings
-  private cameraRotation = new THREE.Euler(0, 0, 0, 'YXZ');
   private cameraPivotPoint = new THREE.Vector3();
-  private cameraDistance = 30;
-  private minCameraDistance = 10;
-  private maxCameraDistance = 50;
+  private cameraDistance = 80;
+  private minCameraDistance = 40;
+  private maxCameraDistance = 120;
   private cameraSmoothingFactor = 0.1;
+  private readonly isoPitch = THREE.MathUtils.degToRad(35);
+  private readonly isoYaw = THREE.MathUtils.degToRad(45);
   
-  // Mouse controls
-  private mouseDownPosition = new THREE.Vector2();
-  private isMouseDown = false;
-  private mouseSensitivity = 0.003;
   
   // Key states
   private keys = {
@@ -35,7 +32,7 @@ export class ShipControls {
   // Control state
   public enabled = true;
   
-  constructor(ship: Ship, camera: THREE.PerspectiveCamera) {
+  constructor(ship: Ship, camera: THREE.OrthographicCamera) {
     this.ship = ship;
     this.camera = camera;
   }
@@ -49,19 +46,13 @@ export class ShipControls {
     document.addEventListener('keydown', (event) => this.handleKeyDown(event));
     document.addEventListener('keyup', (event) => this.handleKeyUp(event));
     
-    // Mouse events
-    document.addEventListener('mousedown', (event) => this.handleMouseDown(event));
-    document.addEventListener('mouseup', () => this.handleMouseUp());
-    document.addEventListener('mousemove', (event) => this.handleMouseMove(event));
+    // Zoom only
     document.addEventListener('wheel', (event) => this.handleMouseWheel(event));
     
     // Disable context menu on right click
     document.addEventListener('contextmenu', (event) => event.preventDefault());
     
-    // Touch events for mobile support
-    document.addEventListener('touchstart', (event) => this.handleTouchStart(event));
-    document.addEventListener('touchend', () => this.handleTouchEnd());
-    document.addEventListener('touchmove', (event) => this.handleTouchMove(event));
+    // Touch zoom not supported yet
     
     // Add interaction handler for keyboard
     document.addEventListener('keydown', (event) => {
@@ -123,32 +114,7 @@ export class ShipControls {
     }
   }
   
-  private handleMouseDown(event: MouseEvent): void {
-    if (!this.enabled) return;
-    
-    this.isMouseDown = true;
-    this.mouseDownPosition.set(event.clientX, event.clientY);
-  }
-  
-  private handleMouseUp(): void {
-    this.isMouseDown = false;
-  }
-  
-  private handleMouseMove(event: MouseEvent): void {
-    if (!this.isMouseDown || !this.enabled) return;
-    
-    const deltaX = event.clientX - this.mouseDownPosition.x;
-    const deltaY = event.clientY - this.mouseDownPosition.y;
-    
-    this.mouseDownPosition.set(event.clientX, event.clientY);
-    
-    // Update camera rotation
-    this.cameraRotation.y -= deltaX * this.mouseSensitivity;
-    this.cameraRotation.x -= deltaY * this.mouseSensitivity;
-    
-    // Clamp vertical rotation to prevent flipping
-    this.cameraRotation.x = Math.max(-Math.PI / 3, Math.min(Math.PI / 3, this.cameraRotation.x));
-  }
+  // Mouse drag is unused in isometric mode
   
   private handleMouseWheel(event: WheelEvent): void {
     if (!this.enabled) return;
@@ -160,32 +126,7 @@ export class ShipControls {
     this.cameraDistance = Math.max(this.minCameraDistance, Math.min(this.maxCameraDistance, this.cameraDistance));
   }
   
-  private handleTouchStart(event: TouchEvent): void {
-    if (!this.enabled || event.touches.length === 0) return;
-    
-    this.isMouseDown = true;
-    this.mouseDownPosition.set(event.touches[0].clientX, event.touches[0].clientY);
-  }
-  
-  private handleTouchEnd(): void {
-    this.isMouseDown = false;
-  }
-  
-  private handleTouchMove(event: TouchEvent): void {
-    if (!this.isMouseDown || !this.enabled || event.touches.length === 0) return;
-    
-    const deltaX = event.touches[0].clientX - this.mouseDownPosition.x;
-    const deltaY = event.touches[0].clientY - this.mouseDownPosition.y;
-    
-    this.mouseDownPosition.set(event.touches[0].clientX, event.touches[0].clientY);
-    
-    // Update camera rotation
-    this.cameraRotation.y -= deltaX * this.mouseSensitivity;
-    this.cameraRotation.x -= deltaY * this.mouseSensitivity;
-    
-    // Clamp vertical rotation to prevent flipping
-    this.cameraRotation.x = Math.max(-Math.PI / 3, Math.min(Math.PI / 3, this.cameraRotation.x));
-  }
+  // Touch handlers unused in isometric mode
   
   private handleInteraction(): void {
     // Find nearest interactable object (island or chest)
@@ -239,10 +180,10 @@ export class ShipControls {
     // Update camera pivot point to ship position
     this.cameraPivotPoint.copy(this.ship.position);
     
-    // Calculate camera position based on rotation and distance
-    const offsetX = Math.sin(this.cameraRotation.y) * Math.cos(this.cameraRotation.x) * this.cameraDistance;
-    const offsetZ = Math.cos(this.cameraRotation.y) * Math.cos(this.cameraRotation.x) * this.cameraDistance;
-    const offsetY = Math.sin(this.cameraRotation.x) * this.cameraDistance;
+    // Calculate camera position using fixed isometric angles
+    const offsetX = Math.cos(this.isoPitch) * Math.sin(this.isoYaw) * this.cameraDistance;
+    const offsetZ = Math.cos(this.isoPitch) * Math.cos(this.isoYaw) * this.cameraDistance;
+    const offsetY = Math.sin(this.isoPitch) * this.cameraDistance;
     
     const targetCameraPosition = new THREE.Vector3(
       this.cameraPivotPoint.x + offsetX,
