@@ -31,7 +31,7 @@ export class Bottle {
     scene.add(this.model);
 
     // Scale to appropriate size
-    const scale = 10;
+    const scale = 20;
     this.model.scale.set(scale, scale, scale);
 
     // Tag for interaction if needed
