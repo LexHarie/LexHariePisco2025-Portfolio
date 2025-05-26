@@ -1,6 +1,6 @@
 # Pirate Portfolio
 
-An interactive, résumé-driven 3‑D website with a pirate theme. Explore a finite ocean with flying islands (résumé sections) and treasure chests (projects). The scene is viewed from a fixed isometric angle using an orthographic camera.
+An interactive, résumé-driven 3-D website with a pirate theme. Navigate an endless procedural ocean with flying islands (résumé sections) and treasure chests (projects). Control a pirate ship to explore and interact with the environment.
 
 ## Tech Stack
 
@@ -20,6 +20,7 @@ The following 3D models are used:
 ## Controls
 
 - **W/A/S/D** - Move ship forward/left/backward/right
+- **Mouse** - Look around (hold and drag)
 - **Mouse Wheel** - Zoom in/out
 - **Shift** - Boost speed (drains stamina)
 - **E** - Interact with islands and chests
