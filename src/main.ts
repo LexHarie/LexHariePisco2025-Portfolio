@@ -50,7 +50,7 @@ window.addEventListener('DOMContentLoaded', () => {
     // Initialize the World with debug mode
     console.log('Creating world');
     const world = new World();
-    world.debug = true; // Enable debug helpers
+    // world.debug = true; // Debug helpers disabled
     window.world = world;
     
     // Update loading progress
@@ -67,18 +67,7 @@ window.addEventListener('DOMContentLoaded', () => {
     }).then(() => {
       console.log('World initialized successfully');
       world.animate();
-      
-      // Add debug info
-      const debugInfo = document.createElement('div');
-      debugInfo.style.position = 'absolute';
-      debugInfo.style.top = '10px';
-      debugInfo.style.right = '10px';
-      debugInfo.style.color = 'white';
-      debugInfo.style.backgroundColor = 'rgba(0,0,0,0.5)';
-      debugInfo.style.padding = '10px';
-      debugInfo.style.borderRadius = '5px';
-      debugInfo.textContent = 'Debug mode on - Press F12 for console';
-      document.body.appendChild(debugInfo);
+      // Debug info display is disabled
     });
     
     // Remove loading screen after a short delay
